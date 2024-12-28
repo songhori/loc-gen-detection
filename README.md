@@ -12,3 +12,6 @@ A: The path to the input image
 B: Number of males
 C: number of females
 D-RW: The probability of each location class (sum of all probabilities is 1)
+
+You can find The test/train data here:
+https://drive.google.com/drive/folders/1sUJHwB3t_WChlbrD3Wa69BMxfzzWuKdZ
