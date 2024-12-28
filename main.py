@@ -58,7 +58,7 @@ class EffNetb0Model(torch.nn.Module):
     def __init__(self, num_classes=1000):
         super(EffNetb0Model, self).__init__()
         self.model = models.efficientnet_b0(weights=None)
-        self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, 1)
+        self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, num_classes)
         
     def forward(self, x):
         x = self.model(x)
@@ -71,17 +71,17 @@ gender.load_state_dict(ckpt)
 
 
 # class EffNetV2sModel(torch.nn.Module):
-#     def __init__(self):
+#     def __init__(self, num_classes=1000):
 #         super(EffNetV2sModel, self).__init__()
 #         self.model = models.efficientnet_v2_s(weights="IMAGENET1K_V1")
-#         self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, 1)
+#         self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, num_classes)
 
 #     def forward(self, x):
 #         x = self.model(x)
 #         x = torch.sigmoid(x)
 #         return x
 
-# gender = EffNetV2sModel()
+# gender = EffNetV2sModel(num_classes=1)
 
 
 gender.to(device)
