@@ -1,5 +1,7 @@
 ############ Load libraries  ############
 
+import numpy as np
+import sys
 from PIL import Image
 import torch
 from glob import glob
@@ -7,28 +9,14 @@ from ultralytics import YOLO
 import pandas as pd
 from tqdm import tqdm
 from torch import nn
+from torch.nn import functional as F
 from torchvision import transforms as T
-from torchvision import models
+from torchvision import transforms, datasets, models
 tqdm.pandas()
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# print(device)
-# print("CUDA Available:", torch.cuda.is_available())
-# print("cuDNN Version:", torch.backends.cudnn.version())
-
-
-
-############ Initialize Parameters  ############
-
-yolo_confidence = 0.6
-body_model = 'models/yolo/yolo11x.pt'
-
-gender_threshold = 0.5
-gender_model = 'models/gender/gender_effb0_body.pth'
-
-location_model = 'models/resnet/resnet50_fined.pt'
+device='cuda'
 
 
 
@@ -41,49 +29,23 @@ transform = T.Compose([T.Resize(224),
 
 
 
-############ Body Detection ############
-
-yolo_model = YOLO(body_model)
-yolo_model.to(device)
-dict_classes = yolo_model.model.names
-class_IDS = [0]
-
-print('body detection model loaded')
-
-
-
 ############ Gender Classification ############
 
-class EffNetb0Model(torch.nn.Module):
-    def __init__(self, num_classes=1000):
-        super(EffNetb0Model, self).__init__()
+class EffModel(torch.nn.Module):
+    def __init__(self,num_classes=1000):
+        super(EffModel, self).__init__()
         self.model = models.efficientnet_b0(weights=None)
         self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, 1)
         
     def forward(self, x):
         x = self.model(x)
-        x = torch.sigmoid(x)
+        x = F.sigmoid(x)
         return x
 
 
-class EffNetV2sModel(torch.nn.Module):
-    def __init__(self):
-        super(EffNetV2sModel, self).__init__()
-        self.model = models.efficientnet_v2_s(weights="IMAGENET1K_V1")
-        self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, 1)
-
-    def forward(self, x):
-        x = self.model(x)
-        x = torch.sigmoid(x)
-        return x
-
-
-ckpt = torch.load(gender_model, map_location=device)
-gender = EffNetb0Model(num_classes=1)
+ckpt = torch.load('gender_effb0_body.pth', map_location=device)
+gender = EffModel(num_classes=1)
 gender.load_state_dict(ckpt)
-
-# gender = EffNetV2sModel()
-
 gender.to(device)
 gender.eval()
 
@@ -94,23 +56,34 @@ print('gender model loaded')
 ############ Location Classification ############
 
 class ResnetModel(nn.Module):
-    def __init__(self, num_classes=1000):
+    def __init__(self,num_classes=1000):
         super(ResnetModel, self).__init__()
         self.model = models.resnet50(weights=None)
         self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
 
     def forward(self, x):
         x = self.model(x)
-        x = torch.softmax(x, dim=1)
+        x = F.softmax(x)
         return x
     
-ckpt = torch.load(location_model, map_location=device)
+ckpt = torch.load('resnet50_fined.pt', map_location=device)
 classifier = ResnetModel(num_classes=488)
 classifier.load_state_dict(ckpt)
 classifier.eval()
 classifier.to(device)
 
-print('location classifier model loaded')
+print('loc classifier model loaded')
+
+
+
+############ Body Detection ############
+
+yolo_model = YOLO('yolov8n.pt',)
+yolo_model.to(device)
+dict_classes = yolo_model.model.names
+class_IDS = [0]
+
+print('detection model loaded')
 
 
 
@@ -121,7 +94,7 @@ males = []
 females = []
 paths = []
 
-test_path = 'data/test/*'
+test_path = '/media/nextera/New Volume/facecup/Facecup/test/*'
 files = glob(test_path)
 for filename in tqdm(files):
     cnt = 0
@@ -129,17 +102,17 @@ for filename in tqdm(files):
     fe  = 0
     
     img = Image.open(filename).convert('RGB')
-    out = yolo_model.predict(img, verbose=False, conf=yolo_confidence, classes=[0], device=device)
 
+    out = yolo_model.predict(img,verbose=False ,conf=0.2,classes =[0])
     for bb in out[0].boxes.xyxy:
         cnt += 1
         bb = bb.detach().cpu().numpy().astype(int)
-        imm = img.crop([bb[0], bb[1], bb[2], bb[3]])
+        imm = img.crop([bb[0],bb[1],bb[2],bb[3]])
         
         imm = transform(imm)
         gen_pred = gender(imm.unsqueeze(0).to(device)).detach().cpu().numpy()[0][0]
         
-        if gen_pred < gender_threshold:
+        if gen_pred<0.4:
             ma+=1
         else:
             fe+=1
@@ -150,14 +123,17 @@ for filename in tqdm(files):
     probas.append(classifier(img.unsqueeze(0).to(device)).detach().cpu().numpy()[0])
     paths.append(filename.split('/')[-1])
 
-sub = pd.DataFrame({'path':paths, 'males':males, 'females':females, 'probas':probas})
+
+sub = pd.DataFrame({'path':paths,'males':males,'females':females,'probas':probas})
 
 
 
 ############ create submission file  ############
 
 temp = sub.probas.apply(pd.Series)
-sub = pd.concat([sub,temp], axis=1)
-sub = sub.drop(['probas'], axis=1)
+sub = pd.concat([sub,temp],axis=1)
+sub = sub.drop(['probas'],axis=1)
 
 sub.to_csv('submission.csv',index=False)
+
+sub
