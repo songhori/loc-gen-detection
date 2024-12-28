@@ -1,0 +1,7 @@
+numpy
+torch-2.5.1+cu124-cp310-cp310-win_amd64.whl
+torchvision
+pandas
+Pillow
+tqdm
+ultralytics

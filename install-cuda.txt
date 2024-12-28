@@ -1,0 +1,40 @@
+1- install cuda toolkit: cuda_12_6.3...exe 
+
+2- copy and paste the contents of cudnn-windows-... folder into installed folder: 
+C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6
+
+3- Verify Environment Variables
+Ensure the following paths are added to your system's environment variables:
+
+PATH:
+Add: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin
+Add: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\lib\x64
+INCLUDE (if not already added):
+Add: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\include
+
+
+4- install torch, torchvision torchaudio torchstudio (if needed) using this command in bash (in your activated env):
+
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+(cu124 stands for cuda version 12.4)
+
+or download the wheel source: https://download.pytorch.org/whl/cu124/torch-2.5.1%2Bcu124-cp310-cp310-win_amd64.whl
+and then install the torch by source:
+
+pip install torch-2.5.1+cu124-cp310-cp310-win_amd64.whl
+then you separately install torchvision, torchaudio, torchstudio by using:
+pip install torch torchvision torchaudio torchstudio --index-url https://download.pytorch.org/whl/cu124
+remember to install ultralytics after installing torch and torchvision
+(you can find more pytorch cuda versions in https://pytorch.org/)
+
+
+5- Verify cuDNN Installation
+After installation, verify that your PyTorch or TensorFlow environment can detect cuDNN:
+
+Run the following Python code to check cuDNN availability:
+
+import torch
+print("CUDA Available:", torch.cuda.is_available())
+print("cuDNN Version:", torch.backends.cudnn.version())
+
+If torch.cuda.is_available() returns True and torch.backends.cudnn.version() returns a version like 8700 (for cuDNN 8.7), the installation is successful.
