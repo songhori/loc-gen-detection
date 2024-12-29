@@ -25,7 +25,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ############ Initialize Parameters  ############
 
-yolo_confidence = 0.6
+yolo_confidence = 0.7
 body_model = 'models/yolo/yolo11x.pt'
 gender_model_selection = 'EffNetb0Model'
 location_model = 'models/resnet/resnet50_fined.pt'
