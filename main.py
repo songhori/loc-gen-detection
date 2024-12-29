@@ -9,6 +9,9 @@ from tqdm import tqdm
 from torch import nn
 from torchvision import transforms as T
 from torchvision import models
+import numpy as np
+# from insightface.app import FaceAnalysis
+from deepface import DeepFace
 tqdm.pandas()
 
 
@@ -24,11 +27,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 yolo_confidence = 0.6
 body_model = 'models/yolo/yolo11x.pt'
-
-gender_threshold = 0.5
-gender_model = 'models/gender/gender_effb0_body.pth'
-
+gender_model_selection = 'EffNetb0Model'
 location_model = 'models/resnet/resnet50_fined.pt'
+
+match gender_model_selection:
+
+    case 'EffNetb0Model' | 'EffNetV2sModel':
+        gender_threshold = 0.5
+        gender_model = 'models/gender/gender_effb0_body.pth'
+
+    case 'deepface':
+        deepface_detector = 'opencv'
 
 
 
@@ -65,27 +74,49 @@ class EffNetb0Model(torch.nn.Module):
         x = torch.sigmoid(x)
         return x
 
-gender = EffNetb0Model(num_classes=1)
-ckpt = torch.load(gender_model, map_location=device)
-gender.load_state_dict(ckpt)
+
+class EffNetV2sModel(torch.nn.Module):
+    def __init__(self, num_classes=1000):
+        super(EffNetV2sModel, self).__init__()
+        self.model = models.efficientnet_v2_s(weights="IMAGENET1K_V1")
+        self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, num_classes)
+
+    def forward(self, x):
+        x = self.model(x)
+        x = torch.sigmoid(x)
+        return x
 
 
-# class EffNetV2sModel(torch.nn.Module):
-#     def __init__(self, num_classes=1000):
-#         super(EffNetV2sModel, self).__init__()
-#         self.model = models.efficientnet_v2_s(weights="IMAGENET1K_V1")
-#         self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, num_classes)
+match gender_model_selection:
 
-#     def forward(self, x):
-#         x = self.model(x)
-#         x = torch.sigmoid(x)
-#         return x
+    case 'EffNetb0Model':
+        gender = EffNetb0Model(num_classes=1)
+        ckpt = torch.load(gender_model, map_location=device)
+        gender.load_state_dict(ckpt)
+        gender.to(device)
+        gender.eval()
 
-# gender = EffNetV2sModel(num_classes=1)
+    case 'EffNetV2sModel':
+        gender = EffNetV2sModel(num_classes=1)
+        gender.to(device)
+        gender.eval()
 
+    case 'insightface':
+        gender = FaceAnalysis(allowed_modules=['detection', 'genderage'])
+        gender.prepare(ctx_id=0, det_size=(640, 640))  # Use GPU if available, or set ctx_id=-1 for CPU
 
-gender.to(device)
-gender.eval()
+    case 'deepface':
+        temp_path = "temp_cropped_image.jpg"
+        def get_gender(cropped_imm):
+            # Convert cropped image to a temporary file (DeepFace expects a file path)
+            cropped_imm.save(temp_path)
+            result = DeepFace.analyze(temp_path,
+                                      actions = ['gender'],
+                                      detector_backend = deepface_detector,
+                                      enforce_detection  = False
+                                      )
+            gender = result[0]['dominant_gender']
+            return gender
 
 print('gender model loaded')
 
@@ -136,14 +167,31 @@ for filename in tqdm(files):
         bb = bb.detach().cpu().numpy().astype(int)
         imm = img.crop([bb[0], bb[1], bb[2], bb[3]])
         
-        imm = transform(imm)
-        gen_pred = gender(imm.unsqueeze(0).to(device)).detach().cpu().numpy()[0][0]
-        
-        if gen_pred < gender_threshold:
-            ma+=1
-        else:
-            fe+=1
+        match gender_model_selection:
+
+            case 'EffNetb0Model' | 'EffNetV2sModel':
+                imm_tra = transform(imm)
+                gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0][0]
+                if gen_pred < gender_threshold:
+                    ma += 1
+                else:
+                    fe += 1
             
+            case 'insightface':
+                faces = gender.get(np.array(imm))
+                gen_pred = faces[0].sex  # 1 = Male, 0 = Female
+                if gen_pred == 1:
+                    ma += 1
+                else:
+                    fe += 1
+
+            case 'deepface':
+                gender = get_gender(imm)
+                if gender == 'Man':
+                    ma += 1
+                else:
+                    fe += 1
+
     males.append(ma)
     females.append(fe)
     img = transform(img)
