@@ -85,7 +85,7 @@ resnet101.fc = nn.Linear(resnet101.fc.in_features, 488)
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(resnet101.fc.parameters(), lr=0.001)
-lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
+lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
 
 # Training the model
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -110,6 +110,7 @@ for epoch in range(num_epochs):
     # Validation
     resnet101.eval()
     val_preds, val_labels_list = [], []
+    val_loss = 0.0
     with torch.no_grad():
         for inputs, labels in val_loader:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -117,6 +118,10 @@ for epoch in range(num_epochs):
             _, preds = torch.max(outputs, 1)
             val_preds.extend(preds.cpu().numpy())
             val_labels_list.extend(labels.cpu().numpy())
+            val_loss += loss.item()
+
+    val_acc = accuracy_score(val_labels_list, val_preds)
+    avg_val_loss = val_loss / len(val_loader)
 
     val_acc = accuracy_score(val_labels_list, val_preds)
     print(f"Epoch {epoch + 1}, Loss: {running_loss / len(train_loader):.4f}, Validation Accuracy: {val_acc:.4f}")
@@ -125,6 +130,6 @@ for epoch in range(num_epochs):
         best_val_acc = val_acc
         torch.save(resnet101.state_dict(), 'resnet101_fined.pth')
 
-    lr_scheduler.step()
+    lr_scheduler.step(avg_val_loss)
 
 print(f"Training completed. Best validation accuracy: {best_val_acc:.4f}")
