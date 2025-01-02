@@ -28,7 +28,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 yolo_confidence = 0.7
 body_model = 'models/yolo/yolo11x.pt'
 gender_model_selection = 'EffNetb0Model'
-location_model = 'models/resnet/resnet50_fined.pt'
+location_model = 'models/resnet/resnet101_fined.pth'
 
 match gender_model_selection:
 
@@ -44,9 +44,16 @@ match gender_model_selection:
 ############ Preprocessing and Trasnforms ############
 
 imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
 transform = T.Compose([T.Resize(224),
                        T.ToTensor(),
                        T.Normalize(*imagenet_stats)])
+
+transform2 = T.Compose([
+    T.Resize((224, 224)),
+    T.ToTensor(),
+    T.Normalize(*imagenet_stats)  # Add normalization
+])
 
 
 
@@ -124,9 +131,9 @@ print('gender model loaded')
 
 ############ Location Classification ############
 
-class ResnetModel(nn.Module):
+class Resnet50Model(nn.Module):
     def __init__(self, num_classes=1000):
-        super(ResnetModel, self).__init__()
+        super(Resnet50Model, self).__init__()
         self.model = models.resnet50(weights=None)
         self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
 
@@ -135,9 +142,45 @@ class ResnetModel(nn.Module):
         x = torch.softmax(x, dim=1)
         return x
     
-ckpt = torch.load(location_model, map_location=device)
-classifier = ResnetModel(num_classes=488)
-classifier.load_state_dict(ckpt)
+
+class ResNet101Model(nn.Module):
+    def __init__(self, num_classes=488, pretrained=True, model_path=None):
+        super(ResNet101Model, self).__init__()
+        
+        # Initialize the pre-trained ResNet101 model
+        self.model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1 if pretrained else None)
+        
+        # Replace the fully connected layer to match your fine-tuned model
+        self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
+        
+        # Load the saved state dict (if model_path is provided)
+        if model_path:
+            checkpoint = torch.load(model_path, map_location='cuda')
+            self.model.load_state_dict(checkpoint)
+        
+    def forward(self, x):
+        """
+        Forward pass through the network with softmax applied to the output.
+        :param x: Input tensor
+        :return: Probabilities for each class after softmax
+        """
+        # Get raw logits from the model
+        logits = self.model(x)
+        
+        # Apply softmax to convert logits to probabilities (along the class dimension)
+        probabilities = torch.softmax(logits, dim=1)
+        
+        return probabilities
+
+
+match location_model:
+    case 'models/resnet/resnet50_fined.pt':
+        ckpt = torch.load(location_model, map_location=device)
+        classifier = Resnet50Model(num_classes=488)
+        classifier.load_state_dict(ckpt)
+    case 'models/resnet/resnet101_fined.pth':
+        classifier = ResNet101Model(num_classes=488, pretrained=True, model_path=location_model)
+
 classifier.eval()
 classifier.to(device)
 
@@ -194,7 +237,13 @@ for filename in tqdm(files):
 
     males.append(ma)
     females.append(fe)
-    img = transform(img)
+    
+    match location_model:
+        case 'models/resnet/resnet50_fined.pt':
+            img = transform(img)
+        case 'models/resnet/resnet101_fined.pth':
+            img = transform2(img)
+
     probas.append(classifier(img.unsqueeze(0).to(device)).detach().cpu().numpy()[0])
     paths.append(filename.split('/')[-1])
 
@@ -208,4 +257,4 @@ temp = sub.probas.apply(pd.Series)
 sub = pd.concat([sub,temp], axis=1)
 sub = sub.drop(['probas'], axis=1)
 
-sub.to_csv('submission.csv',index=False)
+sub.to_csv('submission.csv', index=False)
