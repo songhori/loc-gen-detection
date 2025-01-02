@@ -5,3 +5,12 @@ pandas
 Pillow
 tqdm
 ultralytics
+scikit-learn
+
+# onnxruntime-gpu
+# insightface
+
+# tensorflow
+# tensorflow-gpu
+# tf-keras
+# deepface
