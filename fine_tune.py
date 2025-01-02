@@ -128,7 +128,7 @@ for epoch in range(num_epochs):
 
     if val_acc > best_val_acc:
         best_val_acc = val_acc
-        torch.save(resnet101.state_dict(), 'resnet101_fined.pth')
+        torch.save(resnet101.state_dict(), 'models/resnet/resnet101_fined.pth')
 
     lr_scheduler.step(avg_val_loss)
 
