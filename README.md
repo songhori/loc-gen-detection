@@ -1,11 +1,11 @@
 # loc-detection
-Detects Iran's specific historic/nature location, along with the number of males and females in the picture.
+Detects Iran's specific historic/nature locations, along with the number of males or females in the picture.
 The train/test images are choosen from 488 different locations of Iran's nature and historic places.
 
 This project uses 3 pre-trained Neural Network models.
 1- yolo11x from ultralytics for body detection
-2- fine-tuned efficientnet_b0 from torchvision for gender classification
-3- fine-tuned resnet50 from torchvision for location detection
+2- fine-tuned efficientnet_b0 for gender classification
+3- fine-tuned resnet100 for location detection (the fine_tune.py includes the fine-tuning process)
 
 The output is a csv containing the following columns for each test image:
 A: The path to the input image
