@@ -123,7 +123,6 @@ for epoch in range(num_epochs):
     val_acc = accuracy_score(val_labels_list, val_preds)
     avg_val_loss = val_loss / len(val_loader)
 
-    val_acc = accuracy_score(val_labels_list, val_preds)
     print(f"Epoch {epoch + 1}, Loss: {running_loss / len(train_loader):.4f}, Validation Accuracy: {val_acc:.4f}")
 
     if val_acc > best_val_acc:
