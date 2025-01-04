@@ -1,6 +1,7 @@
 import os
 import torch
 import pandas as pd
+import numpy as np
 from PIL import Image
 import torch.nn as nn
 import torchvision.models as models
@@ -13,11 +14,15 @@ from sklearn.metrics import log_loss, accuracy_score
 
 # Custom dataset class
 class ImageDataset(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None, augment_transform=None):
+    def __init__(self, csv_file, root_dir, transform=None, augment_transform=None, class_threshold=15):
         self.labels = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
         self.augment_transform = augment_transform
+        self.class_threshold = class_threshold
+
+        # Count how many images exist per class
+        self.class_counts = self.labels.iloc[:, 0].value_counts().to_dict()
 
     def __len__(self):
         return len(self.labels)
@@ -27,10 +32,15 @@ class ImageDataset(Dataset):
         image = Image.open(img_name).convert('RGB')
         label = self.labels.iloc[idx, 0]
 
-        if self.augment_transform and torch.rand(1).item() > 0.5:
-            image = self.augment_transform(image)
-        elif self.transform:
-            image = self.transform(image)
+        # If the class has fewer than 'class_threshold' images, apply augmentation
+        if self.class_counts[label] < self.class_threshold:
+            if self.augment_transform and torch.rand(1).item() > 0.5:
+                image = self.augment_transform(image)
+            else:
+                image = self.transform(image)
+        else:
+            if self.transform:
+                image = self.transform(image)
 
         return image, label
 
@@ -112,9 +122,7 @@ for epoch in range(num_epochs):
 
     # Validation loop
     resnet101.eval()
-    all_probs, all_labels = [], []
-    val_preds, val_labels_list = [], []
-    all_classes = list(range(488))  # Explicitly define all class labels
+    all_labels, all_probs, all_preds = [], [], []
 
     with torch.no_grad():
         for inputs, labels in val_loader:
@@ -123,19 +131,22 @@ for epoch in range(num_epochs):
             # Get model outputs
             outputs = resnet101(inputs)
             
-            loss = criterion(outputs, labels)
-            probs = torch.softmax(outputs, dim=1) # Apply softmax to convert logits to probabilities
-            _, preds = torch.max(probs, 1)
+            # Apply softmax to convert logits to probabilities
+            probs = torch.softmax(outputs, dim=1)  # Shape: (batch_size, 488)
+            _, preds = torch.max(probs, 1)  # Predicted class labels
             
-            # Accumulate for all validation data
-            all_probs.extend(probs.cpu().numpy())
+            # Convert tensors to numpy arrays and accumulate
             all_labels.extend(labels.cpu().numpy())
-            val_preds.extend(preds.cpu().numpy())
-            val_labels_list.extend(labels.cpu().numpy())
-            
-    # Compute log loss and accuracy
-    val_logloss = log_loss(all_labels, all_probs, labels=all_classes)
-    val_acc = accuracy_score(val_labels_list, val_preds)
+            all_probs.extend(probs.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy())
+
+    # Convert lists to numpy arrays for log_loss and accuracy
+    all_labels = np.array(all_labels)  # Shape: (num_samples, )
+    all_probs = np.array(all_probs)  # Shape: (num_samples, 488)
+
+    # Calculate average log loss and accuracy
+    val_logloss = log_loss(all_labels, all_probs, labels=list(range(488)))
+    val_acc = accuracy_score(all_labels, all_preds)
 
     print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
