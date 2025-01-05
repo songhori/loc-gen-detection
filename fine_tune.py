@@ -11,6 +11,18 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, accuracy_score
 
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+
+#######################################################
+
+# Load the base model with updated weights parameter
+base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
+# base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
+# base_model = models.efficientnet_b7(pretrained=True)  # EfficientNet B7 is one of the most powerful models
+
+
 
 # Custom dataset class
 class ImageDataset(Dataset):
@@ -78,28 +90,25 @@ val_dataset = ImageDataset(csv_file='data/val_split.csv', root_dir=data_dir, tra
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
-# Load the ResNet101 model with updated weights parameter
-resnet101 = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
-
 # Freeze all layers initially
-for param in resnet101.parameters():
+for param in base_model.parameters():
     param.requires_grad = False
 
 # Unfreeze the last block (layer4) for fine-tuning
-for param in resnet101.layer4.parameters():  
+for param in base_model.layer4.parameters():  
     param.requires_grad = True
 
 # Modify the fully connected (fc) layer to match the number of classes (488)
-resnet101.fc = nn.Linear(resnet101.fc.in_features, 488)
+base_model.fc = nn.Linear(base_model.fc.in_features, 488)
 
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(resnet101.fc.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(base_model.fc.parameters(), lr=0.001)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
 
 # Training the model
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-resnet101.to(device)
+base_model.to(device)
 
 num_epochs = 30
 best_val_logloss = float('inf')
@@ -108,20 +117,20 @@ patience_no_imprv = 4
 epochs_no_imprv = 0
 
 for epoch in range(num_epochs):
-    resnet101.train()
+    base_model.train()
     running_loss = 0.0
     for inputs, labels in train_loader:
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
         with torch.amp.autocast(device_type='cuda'):
-            outputs = resnet101(inputs)
+            outputs = base_model(inputs)
             loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
 
     # Validation loop
-    resnet101.eval()
+    base_model.eval()
     all_labels, all_probs, all_preds = [], [], []
 
     with torch.no_grad():
@@ -129,7 +138,7 @@ for epoch in range(num_epochs):
             inputs, labels = inputs.to(device), labels.to(device)
             
             # Get model outputs
-            outputs = resnet101(inputs)
+            outputs = base_model(inputs)
             
             # Apply softmax to convert logits to probabilities
             probs = torch.softmax(outputs, dim=1)  # Shape: (batch_size, 488)
@@ -153,7 +162,7 @@ for epoch in range(num_epochs):
     if val_logloss < best_val_logloss:  # Lower log loss is better
         best_val_logloss = val_logloss
         best_val_acc = val_acc
-        torch.save(resnet101.state_dict(), 'models/resnet/resnet101_fined.pth')
+        torch.save(base_model.state_dict(), 'models/resnet/base_model_fined.pth')
         epochs_no_imprv = 0
     else:
         epochs_no_imprv += 1
