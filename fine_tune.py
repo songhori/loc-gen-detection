@@ -22,7 +22,12 @@ base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
 # base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
 # base_model = models.efficientnet_b7(pretrained=True)  # EfficientNet B7 is one of the most powerful models
 
+num_epochs = 30
+patience_no_imprv = 4
 
+
+
+#######################################################
 
 # Custom dataset class
 class ImageDataset(Dataset):
@@ -66,14 +71,11 @@ base_transform = transforms.Compose([
 ])
 
 augment_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomRotation(10),
+    transforms.Resize((224, 224)),  # Keep resizing to a fixed size
+    transforms.RandomHorizontalFlip(),  # Optional: Only if the object is symmetric
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
-    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # Random crop with resizing
-    transforms.RandomVerticalFlip(),
     transforms.ToTensor(),
-    transforms.Normalize(*imagenet_stats)
+    transforms.Normalize(*imagenet_stats),
 ])
 
 # Split data into training and validation
@@ -81,6 +83,15 @@ labels_df = pd.read_csv('data/train.csv')
 train_labels, val_labels = train_test_split(labels_df, test_size=0.1, stratify=labels_df.iloc[:, 0], random_state=42)
 train_labels.to_csv('data/train_split.csv', index=False)
 val_labels.to_csv('data/val_split.csv', index=False)
+
+# Calculate the class weights
+labels_df_train = pd.read_csv('data/train_split.csv')
+class_counts = labels_df_train.iloc[:, 0].value_counts()  # Count number of images per class
+total_samples = len(labels_df_train)
+# Inverse frequency weighting: more images = smaller weight, fewer images = larger weight
+class_weights = {label: total_samples / (len(class_counts) * count) for label, count in class_counts.items()}
+# Convert the class weights to a tensor for PyTorch
+weights = torch.tensor([class_weights[label] for label in range(488)], dtype=torch.float32).to(device)
 
 # Create datasets and DataLoaders
 data_dir = 'data/train'
@@ -101,19 +112,18 @@ for param in base_model.layer4.parameters():
 # Modify the fully connected (fc) layer to match the number of classes (488)
 base_model.fc = nn.Linear(base_model.fc.in_features, 488)
 
+torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
+
 # Define loss function, optimizer, and scheduler
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(weight=weights)
 optimizer = torch.optim.Adam(base_model.fc.parameters(), lr=0.001)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
 
 # Training the model
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_model.to(device)
 
-num_epochs = 30
 best_val_logloss = float('inf')
 best_val_acc = 0.0
-patience_no_imprv = 4
 epochs_no_imprv = 0
 
 for epoch in range(num_epochs):
@@ -162,7 +172,7 @@ for epoch in range(num_epochs):
     if val_logloss < best_val_logloss:  # Lower log loss is better
         best_val_logloss = val_logloss
         best_val_acc = val_acc
-        torch.save(base_model.state_dict(), 'models/resnet/base_model_fined.pth')
+        torch.save(base_model.state_dict(), 'models/resnet/resnet101_fined.pth')
         epochs_no_imprv = 0
     else:
         epochs_no_imprv += 1
