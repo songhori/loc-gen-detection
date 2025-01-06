@@ -22,8 +22,8 @@ base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
 # base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
 # base_model = models.efficientnet_b7(pretrained=True)  # EfficientNet B7 is one of the most powerful models
 
-num_epochs = 30
-patience_no_imprv = 4
+num_epochs = 50
+patience_no_imprv = 6
 
 
 
@@ -31,12 +31,11 @@ patience_no_imprv = 4
 
 # Custom dataset class
 class ImageDataset(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None, augment_transform=None, class_threshold=15):
+    def __init__(self, csv_file, root_dir, transform=None, augment_transform=None):
         self.labels = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
         self.augment_transform = augment_transform
-        self.class_threshold = class_threshold
 
         # Count how many images exist per class
         self.class_counts = self.labels.iloc[:, 0].value_counts().to_dict()
@@ -49,15 +48,10 @@ class ImageDataset(Dataset):
         image = Image.open(img_name).convert('RGB')
         label = self.labels.iloc[idx, 0]
 
-        # If the class has fewer than 'class_threshold' images, apply augmentation
-        if self.class_counts[label] < self.class_threshold:
-            if self.augment_transform and torch.rand(1).item() > 0.5:
-                image = self.augment_transform(image)
-            else:
-                image = self.transform(image)
+        if self.augment_transform and torch.rand(1).item() > 0.5:
+            image = self.augment_transform(image)
         else:
-            if self.transform:
-                image = self.transform(image)
+            image = self.transform(image)
 
         return image, label
 
@@ -71,11 +65,12 @@ base_transform = transforms.Compose([
 ])
 
 augment_transform = transforms.Compose([
-    transforms.Resize((224, 224)),  # Keep resizing to a fixed size
-    transforms.RandomHorizontalFlip(),  # Optional: Only if the object is symmetric
+    transforms.Resize((224, 224)),
+    transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
+    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # Random crop with resizing
     transforms.ToTensor(),
-    transforms.Normalize(*imagenet_stats),
+    transforms.Normalize(*imagenet_stats)
 ])
 
 # Split data into training and validation
