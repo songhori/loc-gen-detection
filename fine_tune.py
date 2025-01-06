@@ -4,9 +4,8 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 import torch.nn as nn
-import torchvision.models as models
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+from torchvision import models, transforms
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, accuracy_score
 
@@ -21,6 +20,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
 # base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
 # base_model = models.efficientnet_b7(pretrained=True)  # EfficientNet B7 is one of the most powerful models
+# base_model = models.vit_b_16(pretrained=True)
 
 num_epochs = 50
 patience_no_imprv = 6
