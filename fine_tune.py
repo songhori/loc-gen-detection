@@ -16,14 +16,19 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #######################################################
 
-# Load the base model with updated weights parameter
-base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
-# base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
-# base_model = models.efficientnet_b7(pretrained=True)  # EfficientNet B7 is one of the most powerful models
-# base_model = models.vit_b_16(pretrained=True)
-
+model_name = 'vit_b_16'
 num_epochs = 50
 patience_no_imprv = 6
+
+
+# Load the base model with updated weights parameter
+match model_name:
+    case 'resnet101':
+        base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
+    case 'resnet152':
+        base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
+    case 'vit_b_16':
+        base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
 
 
 
@@ -96,22 +101,40 @@ val_dataset = ImageDataset(csv_file='data/val_split.csv', root_dir=data_dir, tra
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
-# Freeze all layers initially
-for param in base_model.parameters():
-    param.requires_grad = False
+match model_name:
 
-# Unfreeze the last block (layer4) for fine-tuning
-for param in base_model.layer4.parameters():  
-    param.requires_grad = True
+    case 'resnet101' | 'resnet152':
+        # Freeze all layers initially
+        for param in base_model.parameters():
+            param.requires_grad = False
 
-# Modify the fully connected (fc) layer to match the number of classes (488)
-base_model.fc = nn.Linear(base_model.fc.in_features, 488)
+        # Unfreeze the last block (layer4) for fine-tuning
+        for param in base_model.layer4.parameters():  
+            param.requires_grad = True
+
+        # Modify the fully connected (fc) layer to match the number of classes (488)
+        base_model.fc = nn.Linear(base_model.fc.in_features, 488)
+
+        optimizer_parameters = base_model.fc.parameters()
+
+    case 'vit_b_16':
+        # Freeze early layers in the encoder
+        for name, param in base_model.named_parameters():
+            # Check if the layer belongs to the encoder and is within the first few layers
+            if "encoder" in name and "layer" in name.split('.'):
+                param.requires_grad = False
+
+        # Modify the head layer to match the number of classes (488)
+        base_model.heads = nn.Linear(base_model.heads[0].in_features, 488)
+
+        optimizer_parameters = base_model.heads.parameters()
+
 
 torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss(weight=weights)
-optimizer = torch.optim.Adam(base_model.fc.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(optimizer_parameters, lr=0.001)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
 
 # Training the model
@@ -167,7 +190,7 @@ for epoch in range(num_epochs):
     if val_logloss < best_val_logloss:  # Lower log loss is better
         best_val_logloss = val_logloss
         best_val_acc = val_acc
-        torch.save(base_model.state_dict(), 'models/resnet/resnet101_fined.pth')
+        torch.save(base_model.state_dict(), f'models/location/{model_name}_fined.pth')
         epochs_no_imprv = 0
     else:
         epochs_no_imprv += 1
