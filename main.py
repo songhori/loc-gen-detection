@@ -28,8 +28,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 yolo_confidence = 0.7
 body_model = 'models/yolo/yolo11x.pt'
 gender_model_selection = 'EffNetb0Model'
-# location_model = 'models/resnet/resnet101_fined.pth'
-location_model = 'models/vit/vit_fined.pth'
+
+# location_model = 'models/location/resnet50_fined.pt'
+# location_model = 'models/location/resnet101_fined.pth'
+location_model = 'models/location/vit_fined.pth'
 
 match gender_model_selection:
 
@@ -200,13 +202,13 @@ class vitModel(nn.Module):
 
 
 match location_model:
-    case 'models/resnet/resnet50_fined.pt':
+    case 'models/location/resnet50_fined.pt':
         ckpt = torch.load(location_model, map_location=device)
         classifier = Resnet50Model(num_classes=488)
         classifier.load_state_dict(ckpt)
-    case 'models/resnet/resnet101_fined.pth':
+    case 'models/location/resnet101_fined.pth':
         classifier = ResNet101Model(num_classes=488, pretrained=True, model_path=location_model)
-    case 'models/vit/vit_fined.pth':
+    case 'models/location/vit_fined.pth':
         classifier = vitModel(num_classes=488, pretrained=True, model_path=location_model)
 
 classifier.eval()
@@ -267,9 +269,9 @@ for filename in tqdm(files):
     females.append(fe)
     
     match location_model:
-        case 'models/resnet/resnet50_fined.pt':
+        case 'models/location/resnet50_fined.pt':
             img = transform(img)
-        case 'models/resnet/resnet101_fined.pth' | 'models/vit/vit_fined.pth':
+        case 'models/location/resnet101_fined.pth' | 'models/location/vit_fined.pth':
             img = transform2(img)
 
     probas.append(classifier(img.unsqueeze(0).to(device)).detach().cpu().numpy()[0])
