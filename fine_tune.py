@@ -17,7 +17,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #######################################################
 
 model_name = 'vit_b_16'
-num_epochs = 50
+num_epochs = 60
 patience_no_imprv = 6
 
 
@@ -53,7 +53,7 @@ class ImageDataset(Dataset):
         image = Image.open(img_name).convert('RGB')
         label = self.labels.iloc[idx, 0]
 
-        if self.augment_transform and torch.rand(1).item() > 0.5:
+        if self.augment_transform and torch.rand(1).item() > 0.3:
             image = self.augment_transform(image)
         else:
             image = self.transform(image)
@@ -73,13 +73,14 @@ augment_transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
-    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # Random crop with resizing
+    transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
+    transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
 
 # Split data into training and validation
-labels_df = pd.read_csv('data/train.csv')
+labels_df = pd.read_csv('data/train2_best.csv')
 train_labels, val_labels = train_test_split(labels_df, test_size=0.1, stratify=labels_df.iloc[:, 0], random_state=42)
 train_labels.to_csv('data/train_split.csv', index=False)
 val_labels.to_csv('data/val_split.csv', index=False)
@@ -94,7 +95,7 @@ class_weights = {label: total_samples / (len(class_counts) * count) for label, c
 weights = torch.tensor([class_weights[label] for label in range(488)], dtype=torch.float32).to(device)
 
 # Create datasets and DataLoaders
-data_dir = 'data/train'
+data_dir = 'data/train2'
 train_dataset = ImageDataset(csv_file='data/train_split.csv', root_dir=data_dir, transform=base_transform, augment_transform=augment_transform)
 val_dataset = ImageDataset(csv_file='data/val_split.csv', root_dir=data_dir, transform=base_transform)
 
@@ -122,7 +123,7 @@ match model_name:
         for name, param in base_model.named_parameters():
             # Check if the layer belongs to the encoder and is within the first few layers
             if "encoder" in name and "layer" in name.split('.'):
-                param.requires_grad = False
+                param.requires_grad = True
 
         # Modify the head layer to match the number of classes (488)
         base_model.heads = nn.Linear(base_model.heads[0].in_features, 488)
