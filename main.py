@@ -27,7 +27,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 yolo_confidence = 0.7
 body_model = 'models/yolo/yolo11x.pt'
-gender_model_selection = 'EffNetb0Model'
+gender_model_selection = 'vit_b_16'
 location_model_name = 'vit_b_16'
 
 
@@ -39,7 +39,7 @@ match location_model_name:
         location_model = 'models/location/resnet101_fined.pth'
 
     case 'vit_b_16':
-        location_model = 'models/location/vit_b_16_fined.pth'
+        location_model = 'models/location/vit_b_16_fined_best.pth'
 
 
 match gender_model_selection:
@@ -51,6 +51,8 @@ match gender_model_selection:
     case 'deepface':
         deepface_detector = 'opencv'
 
+    case 'vit_b_16':
+        gender_model = 'models/gender/vit_b_16_gender_fined.pth'
 
 
 ############ Preprocessing and Trasnforms ############
@@ -106,6 +108,31 @@ class EffNetV2sModel(torch.nn.Module):
         return x
 
 
+class vitModel(nn.Module):
+    def __init__(self, num_classes=2, pretrained=True, model_path=None):
+        super(vitModel, self).__init__()
+        
+        # Initialize the pre-trained ResNet101 model
+        self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
+        
+        # Replace the fully connected layer to match your fine-tuned model
+        self.model.heads = nn.Linear(self.model.heads[0].in_features, num_classes)
+        
+        # Load the saved state dict (if model_path is provided)
+        if model_path:
+            checkpoint = torch.load(model_path, map_location='cuda')
+            self.model.load_state_dict(checkpoint)
+        
+    def forward(self, x):
+        # Get raw logits from the model
+        logits = self.model(x)
+        
+        # Apply softmax to convert logits to probabilities (along the class dimension)
+        probabilities = torch.softmax(logits, dim=1)
+        
+        return probabilities
+
+
 match gender_model_selection:
 
     case 'EffNetb0Model':
@@ -117,6 +144,11 @@ match gender_model_selection:
 
     case 'EffNetV2sModel':
         gender = EffNetV2sModel(num_classes=1)
+        gender.to(device)
+        gender.eval()
+
+    case 'vit_b_16':
+        gender = vitModel(num_classes=2, pretrained=True, model_path=gender_model)
         gender.to(device)
         gender.eval()
 
@@ -185,31 +217,6 @@ class ResNet101Model(nn.Module):
         return probabilities
 
 
-class vitModel(nn.Module):
-    def __init__(self, num_classes=488, pretrained=True, model_path=None):
-        super(vitModel, self).__init__()
-        
-        # Initialize the pre-trained ResNet101 model
-        self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
-        
-        # Replace the fully connected layer to match your fine-tuned model
-        self.model.heads = nn.Linear(self.model.heads[0].in_features, num_classes)
-        
-        # Load the saved state dict (if model_path is provided)
-        if model_path:
-            checkpoint = torch.load(model_path, map_location='cuda')
-            self.model.load_state_dict(checkpoint)
-        
-    def forward(self, x):
-        # Get raw logits from the model
-        logits = self.model(x)
-        
-        # Apply softmax to convert logits to probabilities (along the class dimension)
-        probabilities = torch.softmax(logits, dim=1)
-        
-        return probabilities
-
-
 match location_model_name:
     case 'resnet50':
         ckpt = torch.load(location_model, map_location=device)
@@ -259,6 +266,14 @@ for filename in tqdm(files):
                 else:
                     fe += 1
             
+            case 'vit_b_16':
+                imm_tra = transform2(imm)
+                gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+                if gen_pred[0] >= gen_pred[1]:
+                    ma += 1
+                else:
+                    fe += 1
+
             case 'insightface':
                 faces = gender.get(np.array(imm))
                 gen_pred = faces[0].sex  # 1 = Male, 0 = Female
