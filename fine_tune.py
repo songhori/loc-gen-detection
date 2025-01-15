@@ -17,8 +17,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #######################################################
 
 model_name = 'vit_b_16'
-num_epochs = 60
-patience_no_imprv = 6
+num_epochs = 80
+patience_no_imprv = 10
 
 
 # Load the base model with updated weights parameter
@@ -73,6 +73,7 @@ augment_transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
+    transforms.RandomRotation(degrees=10),
     transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
     transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
@@ -145,6 +146,25 @@ best_val_logloss = float('inf')
 best_val_acc = 0.0
 epochs_no_imprv = 0
 
+
+def strict_probs(probs, threshold= .9):
+    """
+    This function sets the probability of the index of the maximum probability of each row to 1
+    and decreases all other row probabilities to 0, if the maximum probability of that row is higher than the threshold.
+    If the maximum probability is not higher than the threshold, the row remains unchanged.
+    """
+    probs_strict = probs.copy()  # Use copy to avoid modifying the original array
+    max_args = np.argmax(probs, axis=1)
+    max_probs = np.max(probs, axis=1)
+
+    for row in range(probs.shape[0]):
+        if max_probs[row] > threshold:
+            probs_strict[row, :] = 0
+            probs_strict[row, max_args[row]] = 1
+
+    return probs_strict
+
+
 for epoch in range(num_epochs):
     base_model.train()
     running_loss = 0.0
@@ -181,12 +201,14 @@ for epoch in range(num_epochs):
     # Convert lists to numpy arrays for log_loss and accuracy
     all_labels = np.array(all_labels)  # Shape: (num_samples, )
     all_probs = np.array(all_probs)  # Shape: (num_samples, 488)
+    all_probs_strict = strict_probs(all_probs, threshold=.97)
 
     # Calculate average log loss and accuracy
     val_logloss = log_loss(all_labels, all_probs, labels=list(range(488)))
+    val_logloss_strict = log_loss(all_labels, all_probs_strict, labels=list(range(488)))
     val_acc = accuracy_score(all_labels, all_preds)
 
-    print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Log Loss: {val_logloss:.4f}, Strict Log Loss: {val_logloss_strict:.4f}, Validation Accuracy: {val_acc:.4f}")
 
     if val_logloss < best_val_logloss:  # Lower log loss is better
         best_val_logloss = val_logloss
