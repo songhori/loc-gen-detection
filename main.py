@@ -52,7 +52,7 @@ match gender_model_selection:
         deepface_detector = 'opencv'
 
     case 'vit_b_16':
-        gender_model = 'models/gender/vit_b_16_gender_fined.pth'
+        gender_model = 'models/gender/vit_b_16_gender_fined_best.pth'
 
 
 ############ Preprocessing and Trasnforms ############
