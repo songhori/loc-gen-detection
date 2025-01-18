@@ -17,8 +17,10 @@ torch.cuda.empty_cache()
 
 #######################################################
 
-model_name = 'vit_b_16'
-batch_size = 32
+# model_name = 'vit_b_16'
+# batch_size = 32
+model_name = 'vit_l_16'
+batch_size = 8
 num_epochs = 80
 patience_no_imprv = 12
 
@@ -34,6 +36,7 @@ match model_name:
         base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
     case 'efficientnet_b7_ns':
         base_model = timm.create_model('tf_efficientnet_b7.ns_jft_in1k', pretrained=True, num_classes=2)
+
 
 
 #######################################################
@@ -75,11 +78,13 @@ augment_transform = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
     transforms.RandomRotation(degrees=10),
-    # transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
+    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # Random crop with resizing
     transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
+
+
 
 
 #######################################################
@@ -106,6 +111,7 @@ val_dataset = ImageDataset(csv_file='data/bodies/val_split.csv', root_dir=data_d
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
 
 
 #######################################################
@@ -147,7 +153,9 @@ torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss(weight=weights)
 optimizer = torch.optim.Adam(optimizer_parameters, lr=0.001)
+# optimizer = torch.optim.RMSprop(optimizer_parameters, lr=0.001, momentum=0.9, weight_decay=0.00001, alpha=0.9)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
+
 
 
 #######################################################
@@ -207,7 +215,7 @@ for epoch in range(num_epochs):
 
     print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
-    if avg_val_loss < best_avg_val_loss:  # Lower log loss is better
+    if val_logloss < best_val_logloss:  # Lower log loss is better
         best_avg_val_loss = avg_val_loss
         best_val_logloss = val_logloss
         best_val_acc = val_acc
@@ -220,6 +228,6 @@ for epoch in range(num_epochs):
         print("Early stopping triggered")
         break
 
-    lr_scheduler.step(avg_val_loss)
+    lr_scheduler.step(val_logloss)
 
 print(f"Training completed. Best validation loss: {best_avg_val_loss:.4f}. Best validation log loss: {best_val_logloss:.4f}. Best validation accuracy: {best_val_acc:.4f} ")
