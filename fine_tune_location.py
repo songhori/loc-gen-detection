@@ -201,7 +201,7 @@ for epoch in range(num_epochs):
     # Convert lists to numpy arrays for log_loss and accuracy
     all_labels = np.array(all_labels)  # Shape: (num_samples, )
     all_probs = np.array(all_probs)  # Shape: (num_samples, 488)
-    all_probs_strict = strict_probs(all_probs, threshold=.97)
+    all_probs_strict = strict_probs(all_probs, threshold=.98)
 
     # Calculate average log loss and accuracy
     val_logloss = log_loss(all_labels, all_probs, labels=list(range(488)))
