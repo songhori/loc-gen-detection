@@ -6,6 +6,7 @@ Pillow
 tqdm
 ultralytics
 scikit-learn
+timm
 
 # onnxruntime-gpu
 # insightface
