@@ -17,9 +17,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #######################################################
 
 model_name = 'vit_b_16'
-num_epochs = 60
-patience_no_imprv = 10
-
+batch_size = 32
+num_epochs = 80
+patience_no_imprv = 12
 
 # Load the base model with updated weights parameter
 match model_name:
@@ -29,7 +29,8 @@ match model_name:
         base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
     case 'vit_b_16':
         base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
-
+    case 'vit_l_16':
+        base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
 
 
 #######################################################
@@ -73,7 +74,8 @@ augment_transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
-    transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
+    transforms.RandomRotation(degrees=10),
+    # transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
     transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
@@ -99,8 +101,8 @@ data_dir = 'data/bodies'
 train_dataset = ImageDataset(csv_file='data/bodies/train_split.csv', root_dir=data_dir, transform=base_transform, augment_transform=augment_transform)
 val_dataset = ImageDataset(csv_file='data/bodies/val_split.csv', root_dir=data_dir, transform=base_transform)
 
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 match model_name:
 
@@ -118,7 +120,7 @@ match model_name:
 
         optimizer_parameters = base_model.fc.parameters()
 
-    case 'vit_b_16':
+    case 'vit_b_16' | 'vit_l_16':
         # Freeze early layers in the encoder
         for name, param in base_model.named_parameters():
             # Check if the layer belongs to the encoder and is within the first few layers
@@ -136,12 +138,13 @@ torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss(weight=weights)
 optimizer = torch.optim.Adam(optimizer_parameters, lr=0.001)
-lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
+lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
 
 # Training the model
 base_model.to(device)
 
 best_val_logloss = float('inf')
+best_avg_val_loss = float('inf')
 best_val_acc = 0.0
 epochs_no_imprv = 0
 
@@ -160,6 +163,7 @@ for epoch in range(num_epochs):
 
     # Validation loop
     base_model.eval()
+    val_loss = 0
     all_labels, all_probs, all_preds = [], [], []
 
     with torch.no_grad():
@@ -168,7 +172,9 @@ for epoch in range(num_epochs):
             
             # Get model outputs
             outputs = base_model(inputs)
-            
+            loss = criterion(outputs, labels)
+            val_loss += loss.item()
+
             # Apply softmax to convert logits to probabilities
             probs = torch.softmax(outputs, dim=1)  # Shape: (batch_size, 2)
             _, preds = torch.max(probs, 1)  # Predicted class labels
@@ -179,6 +185,7 @@ for epoch in range(num_epochs):
             all_preds.extend(preds.cpu().numpy())
 
     # Convert lists to numpy arrays for log_loss and accuracy
+    avg_val_loss = val_loss / len(val_loader)
     all_labels = np.array(all_labels)  # Shape: (num_samples, )
     all_probs = np.array(all_probs)  # Shape: (num_samples, 2)
 
@@ -186,9 +193,10 @@ for epoch in range(num_epochs):
     val_logloss = log_loss(all_labels, all_probs, labels=list(range(2)))
     val_acc = accuracy_score(all_labels, all_preds)
 
-    print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
-    if val_logloss < best_val_logloss:  # Lower log loss is better
+    if avg_val_loss < best_avg_val_loss:  # Lower log loss is better
+        best_avg_val_loss = avg_val_loss
         best_val_logloss = val_logloss
         best_val_acc = val_acc
         torch.save(base_model.state_dict(), f'models/gender/{model_name}_gender_fined.pth')
@@ -200,6 +208,6 @@ for epoch in range(num_epochs):
         print("Early stopping triggered")
         break
 
-    lr_scheduler.step(val_logloss)
+    lr_scheduler.step(avg_val_loss)
 
-print(f"Training completed. Best validation log loss: {best_val_logloss:.4f}. Best validation accuracy: {best_val_acc:.4f} ")
+print(f"Training completed. Best validation loss: {best_avg_val_loss:.4f}. Best validation log loss: {best_val_logloss:.4f}. Best validation accuracy: {best_val_acc:.4f} ")
