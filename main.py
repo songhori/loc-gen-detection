@@ -1,15 +1,16 @@
 ############ Load libraries  ############
 
-from PIL import Image
+import timm
 import torch
-from glob import glob
-from ultralytics import YOLO
-import pandas as pd
-from tqdm import tqdm
-from torch import nn
-from torchvision import transforms as T
-from torchvision import models
 import numpy as np
+import pandas as pd
+from torch import nn
+from glob import glob
+from tqdm import tqdm
+from PIL import Image
+from ultralytics import YOLO
+from torchvision import models
+from torchvision import transforms as T
 # from insightface.app import FaceAnalysis
 from deepface import DeepFace
 tqdm.pandas()
@@ -53,6 +54,9 @@ match gender_model_selection:
 
     case 'vit_b_16':
         gender_model = 'models/gender/vit_b_16_gender_fined_best.pth'
+
+    case 'efficientnet_b7_ns':
+        gender_model = 'models/gender/efficientnet_b7_ns_gender_fined.pth'
 
 
 ############ Preprocessing and Trasnforms ############
@@ -149,6 +153,13 @@ match gender_model_selection:
 
     case 'vit_b_16':
         gender = vitModel(num_classes=2, pretrained=True, model_path=gender_model)
+        gender.to(device)
+        gender.eval()
+
+    case 'efficientnet_b7_ns':
+        gender = timm.create_model('tf_efficientnet_b7.ns_jft_in1k', pretrained=False, num_classes=2)
+        ckpt = torch.load(gender_model)
+        gender.load_state_dict(ckpt)
         gender.to(device)
         gender.eval()
 
@@ -270,6 +281,23 @@ for filename in tqdm(files):
                 imm_tra = transform2(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
+                    ma += 1
+                else:
+                    fe += 1
+
+            case 'efficientnet_b7_ns':
+                imm_tra = transform2(imm)
+                output = gender(imm_tra.unsqueeze(0).to(device))
+
+                # Apply softmax to the tensor
+                probs = torch.softmax(output, dim=1)
+
+                # Convert to numpy and get predictions
+                probs = probs.detach().cpu().numpy()[0]
+                gen_pred_idx = np.argmax(probs)
+
+                # Update counters based on the prediction
+                if gen_pred_idx == 0:
                     ma += 1
                 else:
                     fe += 1
