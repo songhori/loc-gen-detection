@@ -28,7 +28,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 yolo_confidence = 0.7
 body_model = 'models/yolo/yolo11x.pt'
-gender_model_selection = 'vit_b_16'
+gender_model_selection = 'vit_l_16'
 location_model_name = 'vit_b_16'
 
 
@@ -55,6 +55,9 @@ match gender_model_selection:
 
     case 'vit_b_16':
         gender_model = 'models/gender/vit_b_16_gender_fined_best.pth'
+
+    case 'vit_l_16':
+        gender_model = 'models/gender/vit_l_16_gender_fined.pth'
 
     case 'efficientnet_b7_ns':
         gender_model = 'models/gender/efficientnet_b7_ns_gender_fined.pth'
@@ -118,11 +121,15 @@ class EffNetV2sModel(torch.nn.Module):
 
 
 class vitModel(nn.Module):
-    def __init__(self, num_classes=2, pretrained=True, model_path=None):
+    def __init__(self, variant='b_16', num_classes=2, pretrained=False, model_path=None):
         super(vitModel, self).__init__()
         
-        # Initialize the pre-trained ResNet101 model
-        self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
+        # Initialize the vit model
+        match variant:
+            case 'b_16':
+                self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1 if pretrained else None)
+            case 'l_16':
+                self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1 if pretrained else None)
         
         # Replace the fully connected layer to match your fine-tuned model
         self.model.heads = nn.Linear(self.model.heads[0].in_features, num_classes)
@@ -165,7 +172,12 @@ match gender_model_selection:
         gender.eval()
 
     case 'vit_b_16':
-        gender = vitModel(num_classes=2, pretrained=True, model_path=gender_model)
+        gender = vitModel(num_classes=2, variant='b_16', model_path=gender_model)
+        gender.to(device)
+        gender.eval()
+    
+    case 'vit_l_16':
+        gender = vitModel(num_classes=2, variant='l_16', model_path=gender_model)
         gender.to(device)
         gender.eval()
 
@@ -196,7 +208,7 @@ print('gender model loaded')
 ############ Location Classification ############
 
 class Resnet50Model(nn.Module):
-    def __init__(self, num_classes=1000):
+    def __init__(self, num_classes=488):
         super(Resnet50Model, self).__init__()
         self.model = models.resnet50(weights=None)
         self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
@@ -208,7 +220,7 @@ class Resnet50Model(nn.Module):
     
 
 class ResNet101Model(nn.Module):
-    def __init__(self, num_classes=488, pretrained=True, model_path=None):
+    def __init__(self, num_classes=488, pretrained=False, model_path=None):
         super(ResNet101Model, self).__init__()
         
         # Initialize the pre-trained ResNet101 model
@@ -243,9 +255,9 @@ match location_model_name:
         classifier = Resnet50Model(num_classes=488)
         classifier.load_state_dict(ckpt)
     case 'resnet101':
-        classifier = ResNet101Model(num_classes=488, pretrained=True, model_path=location_model)
+        classifier = ResNet101Model(num_classes=488, model_path=location_model)
     case 'vit_b_16':
-        classifier = vitModel(num_classes=488, pretrained=True, model_path=location_model)
+        classifier = vitModel(num_classes=488, variant='b_16', model_path=location_model)
 
 classifier.eval()
 classifier.to(device)
@@ -286,7 +298,7 @@ for filename in tqdm(files):
                 else:
                     fe += 1
             
-            case 'vit_b_16':
+            case 'vit_b_16' | 'vit_l_16':
                 imm_tra = transform2(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
