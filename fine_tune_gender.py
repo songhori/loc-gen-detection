@@ -1,16 +1,17 @@
 import os
+import timm
 import torch
-import pandas as pd
 import numpy as np
-from PIL import Image
+import pandas as pd
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from PIL import Image
 from torchvision import models, transforms
+from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, accuracy_score
 
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+torch.cuda.empty_cache()
 
 
 
@@ -31,6 +32,8 @@ match model_name:
         base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
     case 'vit_l_16':
         base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
+    case 'efficientnet_b7_ns':
+        base_model = timm.create_model('tf_efficientnet_b7.ns_jft_in1k', pretrained=True, num_classes=2)
 
 
 #######################################################
@@ -42,9 +45,6 @@ class ImageDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.augment_transform = augment_transform
-
-        # Count how many images exist per class
-        self.class_counts = self.labels.iloc[:, 0].value_counts().to_dict()
 
     def __len__(self):
         return len(self.labels)
@@ -117,7 +117,6 @@ match model_name:
 
         # Modify the fully connected (fc) layer to match the number of classes (2)
         base_model.fc = nn.Linear(base_model.fc.in_features, 2)
-
         optimizer_parameters = base_model.fc.parameters()
 
     case 'vit_b_16' | 'vit_l_16':
@@ -129,9 +128,12 @@ match model_name:
 
         # Modify the head layer to match the number of classes (2)
         base_model.heads = nn.Linear(base_model.heads[0].in_features, 2)
-
         optimizer_parameters = base_model.heads.parameters()
 
+    case 'efficientnet_b7_ns':
+        for param in base_model.parameters():
+            param.requires_grad = True
+        optimizer_parameters = base_model.parameters()
 
 torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 
@@ -185,12 +187,12 @@ for epoch in range(num_epochs):
             all_preds.extend(preds.cpu().numpy())
 
     # Convert lists to numpy arrays for log_loss and accuracy
-    avg_val_loss = val_loss / len(val_loader)
     all_labels = np.array(all_labels)  # Shape: (num_samples, )
     all_probs = np.array(all_probs)  # Shape: (num_samples, 2)
 
     # Calculate average log loss and accuracy
     val_logloss = log_loss(all_labels, all_probs, labels=list(range(2)))
+    avg_val_loss = val_loss / len(val_loader)
     val_acc = accuracy_score(all_labels, all_preds)
 
     print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
