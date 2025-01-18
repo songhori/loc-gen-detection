@@ -49,6 +49,9 @@ match gender_model_selection:
         gender_threshold = 0.5
         gender_model = 'models/gender/gender_effb0_body.pth'
 
+    case 'resnet152':
+        gender_model = 'models/gender/resnet152_gender_fined.pth'
+
     case 'deepface':
         deepface_detector = 'opencv'
 
@@ -148,6 +151,14 @@ match gender_model_selection:
 
     case 'EffNetV2sModel':
         gender = EffNetV2sModel(num_classes=1)
+        gender.to(device)
+        gender.eval()
+
+    case 'resnet152':
+        gender = models.resnet152(weights=None)
+        gender.fc = nn.Linear(gender.fc.in_features, 2)
+        ckpt = torch.load(gender_model, map_location=device)
+        gender.load_state_dict(ckpt)
         gender.to(device)
         gender.eval()
 
@@ -285,7 +296,7 @@ for filename in tqdm(files):
                 else:
                     fe += 1
 
-            case 'efficientnet_b7_ns':
+            case 'resnet152' | 'efficientnet_b7_ns':
                 imm_tra = transform2(imm)
                 output = gender(imm_tra.unsqueeze(0).to(device))
 
