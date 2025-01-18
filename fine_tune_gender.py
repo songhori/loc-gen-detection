@@ -81,6 +81,9 @@ augment_transform = transforms.Compose([
     transforms.Normalize(*imagenet_stats)
 ])
 
+
+#######################################################
+
 # Split data into training and validation
 labels_df = pd.read_csv('data/bodies/bodies_labels.csv')
 train_labels, val_labels = train_test_split(labels_df, test_size=0.1, stratify=labels_df.iloc[:, 0], random_state=42)
@@ -104,6 +107,9 @@ val_dataset = ImageDataset(csv_file='data/bodies/val_split.csv', root_dir=data_d
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
+
+#######################################################
+
 match model_name:
 
     case 'resnet101' | 'resnet152':
@@ -117,7 +123,7 @@ match model_name:
 
         # Modify the fully connected (fc) layer to match the number of classes (2)
         base_model.fc = nn.Linear(base_model.fc.in_features, 2)
-        optimizer_parameters = base_model.fc.parameters()
+        optimizer_parameters = base_model.parameters()
 
     case 'vit_b_16' | 'vit_l_16':
         # Freeze early layers in the encoder
@@ -135,12 +141,16 @@ match model_name:
             param.requires_grad = True
         optimizer_parameters = base_model.parameters()
 
+
 torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss(weight=weights)
 optimizer = torch.optim.Adam(optimizer_parameters, lr=0.001)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
+
+
+#######################################################
 
 # Training the model
 base_model.to(device)
