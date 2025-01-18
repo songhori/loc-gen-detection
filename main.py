@@ -33,6 +33,7 @@ location_model_name = 'vit_b_16'
 
 
 match location_model_name:
+    
     case 'resnet50':
         location_model = 'models/location/resnet50_fined.pt'
 
@@ -52,14 +53,15 @@ match gender_model_selection:
     case 'resnet152':
         gender_model = 'models/gender/resnet152_gender_fined.pth'
 
-    case 'deepface':
-        deepface_detector = 'opencv'
-
     case 'vit_b_16':
         gender_model = 'models/gender/vit_b_16_gender_fined_best.pth'
 
     case 'efficientnet_b7_ns':
         gender_model = 'models/gender/efficientnet_b7_ns_gender_fined.pth'
+
+    case 'deepface' | 'insightface':
+        pass
+
 
 
 ############ Preprocessing and Trasnforms ############
@@ -174,22 +176,18 @@ match gender_model_selection:
         gender.to(device)
         gender.eval()
 
+    case 'deepface':
+        def get_deepface_gender(cropped_imm, deepface_detector = 'opencv', temp_path = "temp_cropped_image.jpg"):
+            # Convert cropped image to a temporary file (DeepFace expects a file path)
+            cropped_imm.save(temp_path)
+            result = DeepFace.analyze(temp_path, actions=['gender'], detector_backend=deepface_detector, enforce_detection=False)
+            gender = result[0]['dominant_gender']
+            return gender
+
     case 'insightface':
         gender = FaceAnalysis(allowed_modules=['detection', 'genderage'])
         gender.prepare(ctx_id=0, det_size=(640, 640))  # Use GPU if available, or set ctx_id=-1 for CPU
 
-    case 'deepface':
-        temp_path = "temp_cropped_image.jpg"
-        def get_gender(cropped_imm):
-            # Convert cropped image to a temporary file (DeepFace expects a file path)
-            cropped_imm.save(temp_path)
-            result = DeepFace.analyze(temp_path,
-                                      actions = ['gender'],
-                                      detector_backend = deepface_detector,
-                                      enforce_detection  = False
-                                      )
-            gender = result[0]['dominant_gender']
-            return gender
 
 print('gender model loaded')
 
@@ -298,17 +296,24 @@ for filename in tqdm(files):
 
             case 'resnet152' | 'efficientnet_b7_ns':
                 imm_tra = transform2(imm)
-                output = gender(imm_tra.unsqueeze(0).to(device))
+                tens_output = gender(imm_tra.unsqueeze(0).to(device))
 
                 # Apply softmax to the tensor
-                probs = torch.softmax(output, dim=1)
+                tens_probs = torch.softmax(tens_output, dim=1)
 
                 # Convert to numpy and get predictions
-                probs = probs.detach().cpu().numpy()[0]
-                gen_pred_idx = np.argmax(probs)
+                gen_pred = tens_probs.detach().cpu().numpy()[0]
+                gen_pred_idx = np.argmax(gen_pred)
 
                 # Update counters based on the prediction
                 if gen_pred_idx == 0:
+                    ma += 1
+                else:
+                    fe += 1
+
+            case 'deepface':
+                gender_pred = get_deepface_gender(imm)
+                if gender_pred == 'Man':
                     ma += 1
                 else:
                     fe += 1
@@ -317,13 +322,6 @@ for filename in tqdm(files):
                 faces = gender.get(np.array(imm))
                 gen_pred = faces[0].sex  # 1 = Male, 0 = Female
                 if gen_pred == 1:
-                    ma += 1
-                else:
-                    fe += 1
-
-            case 'deepface':
-                gender = get_gender(imm)
-                if gender == 'Man':
                     ma += 1
                 else:
                     fe += 1
