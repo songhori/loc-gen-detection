@@ -54,10 +54,10 @@ match gender_model_selection:
         gender_model = 'models/gender/resnet152_gender_fined.pth'
 
     case 'vit_b_16':
-        gender_model = 'models/gender/vit_b_16_gender_fined_best.pth'
+        gender_model = 'models/gender/vit_b_16_gender_fined.pth'
 
     case 'vit_l_16':
-        gender_model = 'models/gender/vit_l_16_gender_fined.pth'
+        gender_model = 'models/gender/vit_l_16_gender_fined_best.pth'
 
     case 'efficientnet_b7_ns':
         gender_model = 'models/gender/efficientnet_b7_ns_gender_fined.pth'
