@@ -17,18 +17,24 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #######################################################
 
 model_name = 'vit_b_16'
-num_epochs = 80
-patience_no_imprv = 10
+num_epochs = 100
+patience_no_imprv = 12
 
 
 # Load the base model with updated weights parameter
 match model_name:
     case 'resnet101':
         base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
+        batch_size = 32
     case 'resnet152':
         base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
+        batch_size = 32
     case 'vit_b_16':
         base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
+        batch_size = 32
+    case 'vit_l_16':
+        base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
+        batch_size = 8
 
 
 
@@ -81,8 +87,8 @@ augment_transform = transforms.Compose([
 ])
 
 # Split data into training and validation
-labels_df = pd.read_csv('data/train2_best.csv')
-train_labels, val_labels = train_test_split(labels_df, test_size=0.1, stratify=labels_df.iloc[:, 0], random_state=42)
+labels_df = pd.read_csv('data/train2.csv')
+train_labels, val_labels = train_test_split(labels_df, test_size=0.086, stratify=labels_df.iloc[:, 0], random_state=42)
 train_labels.to_csv('data/train_split.csv', index=False)
 val_labels.to_csv('data/val_split.csv', index=False)
 
@@ -100,8 +106,8 @@ data_dir = 'data/train2'
 train_dataset = ImageDataset(csv_file='data/train_split.csv', root_dir=data_dir, transform=base_transform, augment_transform=augment_transform)
 val_dataset = ImageDataset(csv_file='data/val_split.csv', root_dir=data_dir, transform=base_transform)
 
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
 match model_name:
 
@@ -119,7 +125,7 @@ match model_name:
 
         optimizer_parameters = base_model.fc.parameters()
 
-    case 'vit_b_16':
+    case 'vit_b_16' | 'vit_l_16':
         # Freeze early layers in the encoder
         for name, param in base_model.named_parameters():
             # Check if the layer belongs to the encoder and is within the first few layers
