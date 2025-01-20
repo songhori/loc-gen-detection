@@ -32,18 +32,6 @@ gender_model_selection = 'vit_l_16'
 location_model_name = 'vit_b_16'
 
 
-match location_model_name:
-    
-    case 'resnet50':
-        location_model = 'models/location/resnet50_fined.pt'
-
-    case 'resnet101':
-        location_model = 'models/location/resnet101_fined.pth'
-
-    case 'vit_b_16':
-        location_model = 'models/location/vit_b_16_fined_best.pth'
-
-
 match gender_model_selection:
 
     case 'EffNetb0Model' | 'EffNetV2sModel':
@@ -64,6 +52,21 @@ match gender_model_selection:
 
     case 'deepface' | 'insightface':
         pass
+
+
+match location_model_name:
+    
+    case 'resnet50':
+        location_model = 'models/location/resnet50_fined.pt'
+
+    case 'resnet101':
+        location_model = 'models/location/resnet101_fined.pth'
+
+    case 'vit_b_16':
+        location_model = 'models/location/vit_b_16_fined_best.pth'
+
+    case 'vit_l_16':
+        location_model = 'models/location/vit_l_16_fined.pth'
 
 
 
@@ -258,6 +261,8 @@ match location_model_name:
         classifier = ResNet101Model(num_classes=488, model_path=location_model)
     case 'vit_b_16':
         classifier = vitModel(num_classes=488, variant='b_16', model_path=location_model)
+    case 'vit_l_16':
+        classifier = vitModel(num_classes=488, variant='l_16', model_path=location_model)
 
 classifier.eval()
 classifier.to(device)
@@ -344,7 +349,7 @@ for filename in tqdm(files):
     match location_model_name:
         case 'resnet50':
             img = transform(img)
-        case 'resnet101' | 'vit_b_16':
+        case 'resnet101' | 'vit_b_16' | 'vit_l_16':
             img = transform2(img)
 
     probas.append(classifier(img.unsqueeze(0).to(device)).detach().cpu().numpy()[0])
