@@ -17,25 +17,24 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #######################################################
 
 model_name = 'vit_b_16'
+labels_path = 'data/train2.csv'
+batch_size = 32
 num_epochs = 100
 patience_no_imprv = 12
-labels_path = 'data/train2.csv'
+test_size = 0.086
+learning_rate = 0.001
 
 
 # Load the base model with updated weights parameter
 match model_name:
     case 'resnet101':
         base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
-        batch_size = 32
     case 'resnet152':
         base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
-        batch_size = 32
     case 'vit_b_16':
         base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
-        batch_size = 32
     case 'vit_l_16':
         base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
-        batch_size = 8
 
 
 
@@ -89,7 +88,7 @@ augment_transform = transforms.Compose([
 
 # Split data into training and validation
 labels_df = pd.read_csv(labels_path)
-train_labels, val_labels = train_test_split(labels_df, test_size=0.086, stratify=labels_df.iloc[:, 0], random_state=42)
+train_labels, val_labels = train_test_split(labels_df, test_size=test_size, stratify=labels_df.iloc[:, 0], random_state=42)
 train_labels.to_csv('data/train_split.csv', index=False)
 val_labels.to_csv('data/val_split.csv', index=False)
 
@@ -143,7 +142,7 @@ torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss(weight=weights)
-optimizer = torch.optim.Adam(optimizer_parameters, lr=0.001)
+optimizer = torch.optim.Adam(optimizer_parameters, lr=learning_rate)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
 
 # Training the model
