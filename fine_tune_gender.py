@@ -17,12 +17,13 @@ torch.cuda.empty_cache()
 
 #######################################################
 
-# model_name = 'vit_b_16'
-# batch_size = 32
 model_name = 'vit_l_16'
 batch_size = 8
 num_epochs = 80
 patience_no_imprv = 12
+test_size = 0.1
+learning_rate = 0.001
+
 
 # Load the base model with updated weights parameter
 match model_name:
@@ -91,7 +92,7 @@ augment_transform = transforms.Compose([
 
 # Split data into training and validation
 labels_df = pd.read_csv('data/bodies/bodies_labels.csv')
-train_labels, val_labels = train_test_split(labels_df, test_size=0.1, stratify=labels_df.iloc[:, 0], random_state=42)
+train_labels, val_labels = train_test_split(labels_df, test_size=test_size, stratify=labels_df.iloc[:, 0], random_state=42)
 train_labels.to_csv('data/bodies/train_split.csv', index=False)
 val_labels.to_csv('data/bodies/val_split.csv', index=False)
 
@@ -152,7 +153,7 @@ torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss(weight=weights)
-optimizer = torch.optim.Adam(optimizer_parameters, lr=0.001)
+optimizer = torch.optim.Adam(optimizer_parameters, lr=learning_rate)
 # optimizer = torch.optim.RMSprop(optimizer_parameters, lr=0.001, momentum=0.9, weight_decay=0.00001, alpha=0.9)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
 
@@ -163,8 +164,9 @@ lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', pati
 # Training the model
 base_model.to(device)
 
-best_val_logloss = float('inf')
+best_train_loss = float('inf')
 best_avg_val_loss = float('inf')
+best_val_logloss = float('inf')
 best_val_acc = 0.0
 epochs_no_imprv = 0
 
@@ -208,14 +210,16 @@ for epoch in range(num_epochs):
     all_labels = np.array(all_labels)  # Shape: (num_samples, )
     all_probs = np.array(all_probs)  # Shape: (num_samples, 2)
 
-    # Calculate average log loss and accuracy
-    val_logloss = log_loss(all_labels, all_probs, labels=list(range(2)))
+    # Calculate parameters
+    train_loss = running_loss / len(train_loader)
     avg_val_loss = val_loss / len(val_loader)
+    val_logloss = log_loss(all_labels, all_probs, labels=list(range(2)))
     val_acc = accuracy_score(all_labels, all_preds)
 
-    print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"Epoch {epoch + 1}, Training Loss: {train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
-    if val_logloss < best_val_logloss:  # Lower log loss is better
+    if val_logloss < best_val_logloss or (val_logloss == best_val_logloss and train_loss < best_train_loss):
+        best_train_loss = train_loss
         best_avg_val_loss = avg_val_loss
         best_val_logloss = val_logloss
         best_val_acc = val_acc
@@ -230,4 +234,4 @@ for epoch in range(num_epochs):
 
     lr_scheduler.step(val_logloss)
 
-print(f"Training completed. Best validation loss: {best_avg_val_loss:.4f}. Best validation log loss: {best_val_logloss:.4f}. Best validation accuracy: {best_val_acc:.4f} ")
+print(f"Training completed. Best Training Loss: {best_train_loss:.4f}. Best validation loss: {best_avg_val_loss:.4f}. Best validation log loss: {best_val_logloss:.4f}. Best validation accuracy: {best_val_acc:.4f} ")
