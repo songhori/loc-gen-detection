@@ -149,6 +149,7 @@ lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', pati
 # Training the model
 base_model.to(device)
 
+best_train_loss = float('inf')
 best_val_logloss = float('inf')
 best_val_acc = 0.0
 epochs_no_imprv = 0
@@ -190,13 +191,15 @@ for epoch in range(num_epochs):
     all_labels = np.array(all_labels)  # Shape: (num_samples, )
     all_probs = np.array(all_probs)  # Shape: (num_samples, 488)
 
-    # Calculate average log loss and accuracy
+    # Calculate parameters
+    train_loss = running_loss / len(train_loader)
     val_logloss = log_loss(all_labels, all_probs, labels=list(range(488)))
     val_acc = accuracy_score(all_labels, all_preds)
 
-    print(f"Epoch {epoch + 1}, Training Loss: {running_loss / len(train_loader):.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"Epoch {epoch + 1}, Training Loss: {train_loss:.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
-    if val_logloss < best_val_logloss:  # Lower log loss is better
+    if val_logloss < best_val_logloss or (val_logloss == best_val_logloss and train_loss < best_train_loss):
+        best_train_loss = train_loss
         best_val_logloss = val_logloss
         best_val_acc = val_acc
         torch.save(base_model.state_dict(), f'models/location/{model_name}_fined.pth')
@@ -210,4 +213,4 @@ for epoch in range(num_epochs):
 
     lr_scheduler.step(val_logloss)
 
-print(f"Training completed. Best validation log loss: {best_val_logloss:.4f}. Best validation accuracy: {best_val_acc:.4f} ")
+print(f"Training completed. Best Training Loss: {best_train_loss:.4f}. Best validation log loss: {best_val_logloss:.4f}. Best validation accuracy: {best_val_acc:.4f} ")
