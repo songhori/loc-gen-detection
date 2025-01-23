@@ -18,6 +18,7 @@ torch.cuda.empty_cache()
 #######################################################
 
 model_name = 'vit_l_16'
+data_dir = 'data/bodies'
 batch_size = 8
 num_epochs = 80
 patience_no_imprv = 12
@@ -67,15 +68,34 @@ class ImageDataset(Dataset):
 
 imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
+
+def resize_with_padding(image, target_size=(224, 224)):
+    # Resize while maintaining aspect ratio
+    image = transforms.Resize(target_size, interpolation=Image.BILINEAR)(image)
+    
+    # Get new dimensions
+    width, height = image.size
+    
+    # Calculate padding
+    pad_height = (target_size[1] - height) // 2
+    pad_width = (target_size[0] - width) // 2
+    
+    # Pad the image
+    image = transforms.Pad((pad_width, pad_height, target_size[0] - width - pad_width, target_size[1] - height - pad_height))(image)
+    return image
+
+
 # Define transformations
 base_transform = transforms.Compose([
     transforms.Resize((224, 224)),
+    # transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
 
 augment_transform = transforms.Compose([
     transforms.Resize((224, 224)),
+    # transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
     transforms.RandomRotation(degrees=10),
@@ -89,14 +109,18 @@ augment_transform = transforms.Compose([
 
 #######################################################
 
+train_path = f'{data_dir}/train_split.csv'
+val_path = f'{data_dir}/val_split.csv'
+labels_path = f'{data_dir}/bodies_labels.csv'
+
 # Split data into training and validation
-labels_df = pd.read_csv('data/bodies/bodies_labels.csv')
+labels_df = pd.read_csv(labels_path)
 train_labels, val_labels = train_test_split(labels_df, test_size=test_size, stratify=labels_df.iloc[:, 0], random_state=42)
-train_labels.to_csv('data/bodies/train_split.csv', index=False)
-val_labels.to_csv('data/bodies/val_split.csv', index=False)
+train_labels.to_csv(train_path, index=False)
+val_labels.to_csv(val_path, index=False)
 
 # Calculate the class weights
-labels_df_train = pd.read_csv('data/bodies/train_split.csv')
+labels_df_train = pd.read_csv(train_path)
 class_counts = labels_df_train.iloc[:, 0].value_counts()  # Count number of images per class
 total_samples = len(labels_df_train)
 # Inverse frequency weighting: more images = smaller weight, fewer images = larger weight
@@ -105,9 +129,8 @@ class_weights = {label: total_samples / (len(class_counts) * count) for label, c
 weights = torch.tensor([class_weights[label] for label in range(2)], dtype=torch.float32).to(device)
 
 # Create datasets and DataLoaders
-data_dir = 'data/bodies'
-train_dataset = ImageDataset(csv_file='data/bodies/train_split.csv', root_dir=data_dir, transform=base_transform, augment_transform=augment_transform)
-val_dataset = ImageDataset(csv_file='data/bodies/val_split.csv', root_dir=data_dir, transform=base_transform)
+train_dataset = ImageDataset(csv_file=train_path, root_dir=data_dir, transform=base_transform, augment_transform=augment_transform)
+val_dataset = ImageDataset(csv_file=val_path, root_dir=data_dir, transform=base_transform)
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -150,15 +173,15 @@ match model_name:
 
 torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 
-# Define loss function, optimizer, and scheduler
-criterion = nn.CrossEntropyLoss(weight=weights)
-optimizer = torch.optim.Adam(optimizer_parameters, lr=learning_rate)
-# optimizer = torch.optim.RMSprop(optimizer_parameters, lr=0.001, momentum=0.9, weight_decay=0.00001, alpha=0.9)
-lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
-
 
 
 #######################################################
+
+# Define loss function, optimizer, and scheduler
+criterion = nn.CrossEntropyLoss(weight=weights)
+optimizer = torch.optim.Adam(optimizer_parameters, lr=learning_rate)
+# optimizer = torch.optim.RMSprop(optimizer_parameters, lr=learning_rate, momentum=0.9, weight_decay=0.00001, alpha=0.9)
+lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
 
 # Training the model
 base_model.to(device)
