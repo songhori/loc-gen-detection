@@ -17,7 +17,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #######################################################
 
 model_name = 'vit_b_16'
-labels_path = 'data/train2.csv'
+data_dir = 'data/train2'
 batch_size = 32
 num_epochs = 100
 patience_no_imprv = 12
@@ -39,6 +39,26 @@ match model_name:
 
 
 #######################################################
+
+imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
+# Define transformations
+base_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(*imagenet_stats)
+])
+
+augment_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
+    transforms.RandomRotation(degrees=10),
+    transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
+    transforms.RandAugment(num_ops=3, magnitude=9),
+    transforms.ToTensor(),
+    transforms.Normalize(*imagenet_stats)
+])
 
 # Custom dataset class
 class ImageDataset(Dataset):
@@ -66,34 +86,22 @@ class ImageDataset(Dataset):
 
         return image, label
 
-imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
-# Define transformations
-base_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(*imagenet_stats)
-])
 
-augment_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
-    transforms.RandomRotation(degrees=10),
-    transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
-    transforms.RandAugment(num_ops=3, magnitude=9),
-    transforms.ToTensor(),
-    transforms.Normalize(*imagenet_stats)
-])
+#######################################################
+
+train_path = 'data/train_split.csv'
+val_path = 'data/val_split.csv'
+labels_path = f'{data_dir}.csv'
 
 # Split data into training and validation
 labels_df = pd.read_csv(labels_path)
 train_labels, val_labels = train_test_split(labels_df, test_size=test_size, stratify=labels_df.iloc[:, 0], random_state=42)
-train_labels.to_csv('data/train_split.csv', index=False)
-val_labels.to_csv('data/val_split.csv', index=False)
+train_labels.to_csv(train_path, index=False)
+val_labels.to_csv(val_path, index=False)
 
 # Calculate the class weights
-labels_df_train = pd.read_csv('data/train_split.csv')
+labels_df_train = pd.read_csv(train_path)
 class_counts = labels_df_train.iloc[:, 0].value_counts()  # Count number of images per class
 total_samples = len(labels_df_train)
 # Inverse frequency weighting: more images = smaller weight, fewer images = larger weight
@@ -102,12 +110,15 @@ class_weights = {label: total_samples / (len(class_counts) * count) for label, c
 weights = torch.tensor([class_weights[label] for label in range(488)], dtype=torch.float32).to(device)
 
 # Create datasets and DataLoaders
-data_dir = 'data/train2'
-train_dataset = ImageDataset(csv_file='data/train_split.csv', root_dir=data_dir, transform=base_transform, augment_transform=augment_transform)
-val_dataset = ImageDataset(csv_file='data/val_split.csv', root_dir=data_dir, transform=base_transform)
+train_dataset = ImageDataset(csv_file=train_path, root_dir=data_dir, transform=base_transform, augment_transform=augment_transform)
+val_dataset = ImageDataset(csv_file=val_path, root_dir=data_dir, transform=base_transform)
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+
+
+#######################################################
 
 match model_name:
 
@@ -139,6 +150,10 @@ match model_name:
 
 
 torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
+
+
+
+#######################################################
 
 # Define loss function, optimizer, and scheduler
 criterion = nn.CrossEntropyLoss(weight=weights)
