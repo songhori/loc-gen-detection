@@ -3,7 +3,7 @@ import os
 
 base_directory = "data/train2"
 folder_range = 487
-image_threshold = 5  # Set your threshold here
+image_threshold = 10  # Set your threshold here
 
 def count_images_in_folder(folder_path, image_extensions):
     count = 0
@@ -28,3 +28,4 @@ def find_folders_with_few_images(base_directory, folder_range, image_threshold):
 folders_with_few_images = find_folders_with_few_images(base_directory, folder_range, image_threshold)
 print("Folders with fewer than {} images:".format(image_threshold))
 print(folders_with_few_images)
+print('number of underrepresentated classes: ', len(folders_with_few_images))
