@@ -2,9 +2,10 @@ import os
 import pandas as pd
 
 # Directories
-male_dir = "data/bodies/male"
-female_dir = "data/bodies/female"
-output_csv = "data/bodies/bodies_labels.csv"
+data_dir = "data/bodies"
+male_dir = f"{data_dir}/male"
+female_dir = f"{data_dir}/female"
+output_csv = f"{data_dir}/bodies_labels.csv"
 
 # Collect data
 rows = []
