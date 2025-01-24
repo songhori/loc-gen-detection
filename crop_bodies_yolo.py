@@ -1,9 +1,8 @@
 import os
+import torch
 from PIL import Image
 from tqdm import tqdm
-import pandas as pd
 from ultralytics import YOLO
-import torch
 
 # Configurations
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -17,15 +16,12 @@ input_dir = "data/train2"
 output_dir = "data/bodies"
 os.makedirs(output_dir, exist_ok=True)
 
-# Load Data
-data = pd.read_csv("data/train2.csv")
-# Filter the data based on the conditions
-data = data[(data["male"] != 0) | (data["female"] != 0)]
+images = sorted(os.listdir(input_dir))
 
 # Function to crop and save images
-def crop_and_save_images(dataframe, input_dir, output_dir):
-    for idx, row in tqdm(dataframe.iterrows(), total=len(dataframe)):
-        image_path = os.path.join(input_dir, row["path"])
+def crop_and_save_images(images, input_dir, output_dir):
+    for idx, path in enumerate(tqdm(images, total=len(images))):
+        image_path = os.path.join(input_dir, path)
         image = Image.open(image_path).convert("RGB")
 
         # Run YOLO model for body detection
@@ -45,6 +41,6 @@ def crop_and_save_images(dataframe, input_dir, output_dir):
             cropped_img.save(save_path)
 
 # Crop and save images
-crop_and_save_images(data, input_dir, output_dir)
+crop_and_save_images(images, input_dir, output_dir)
 
 print("Cropping complete! Cropped images saved to:", output_dir)
