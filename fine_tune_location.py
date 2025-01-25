@@ -62,15 +62,15 @@ def resize_with_padding(image, target_size=(224, 224)):
 
 # Define transformations
 base_transform = transforms.Compose([
-    # transforms.Resize((224, 224)),
-    transforms.Lambda(lambda img: resize_with_padding(img)),
+    transforms.Resize((224, 224)),
+    # transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
 
 augment_transform = transforms.Compose([
-    # transforms.Resize((224, 224)),
-    transforms.Lambda(lambda img: resize_with_padding(img)),
+    transforms.Resize((224, 224)),
+    # transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.35, contrast=0.35, saturation=0.35, hue=0.35),
     transforms.RandomRotation(degrees=15),
