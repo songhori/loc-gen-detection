@@ -17,13 +17,14 @@ torch.cuda.empty_cache()
 
 #######################################################
 
-model_name = 'vit_l_16'
-data_dir = 'data/bodies'
-batch_size = 8
+model_name = 'vit_b_16'
+data_dir = 'data/bodies/4ClassBodies'
+batch_size = 16
 num_epochs = 80
-patience_no_imprv = 12
+patience_no_imprv = 8
 test_size = 0.1
-learning_rate = 0.001
+learning_rate = 0.00025
+vit_min_transfer_layer = 8
 
 
 # Load the base model with updated weights parameter
@@ -87,18 +88,18 @@ def resize_with_padding(image, target_size=(224, 224)):
 
 # Define transformations
 base_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    # transforms.Lambda(lambda img: resize_with_padding(img)),
+    # transforms.Resize((224, 224)),
+    transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
 
 augment_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    # transforms.Lambda(lambda img: resize_with_padding(img)),
+    # transforms.Resize((224, 224)),
+    transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
-    transforms.RandomRotation(degrees=10),
+    transforms.ColorJitter(brightness=0.35, contrast=0.35, saturation=0.35, hue=0.35),
+    transforms.RandomRotation(degrees=15),
     transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # Random crop with resizing
     transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
@@ -158,17 +159,26 @@ match model_name:
         # Freeze early layers in the encoder
         for name, param in base_model.named_parameters():
             # Check if the layer belongs to the encoder and is within the first few layers
-            if "encoder" in name and "layer" in name.split('.'):
-                param.requires_grad = True
+            if "layer" in name:
+                encoder_layer = name.split('.')[2]
+                layer_idx = int(encoder_layer.split('_')[2])
+                param.requires_grad = False if layer_idx < vit_min_transfer_layer else True
+            else:
+                param.requires_grad = False
 
         # Modify the head layer to match the number of classes (2)
-        base_model.heads = nn.Linear(base_model.heads[0].in_features, 2)
-        optimizer_parameters = base_model.heads.parameters()
+        base_model.heads.head = nn.Linear(base_model.heads.head.in_features, 2)
+        optimizer_parameters = [param for param in base_model.parameters() if param.requires_grad]
 
     case 'efficientnet_b7_ns':
-        for param in base_model.parameters():
-            param.requires_grad = True
-        optimizer_parameters = base_model.parameters()
+        for name, param in base_model.named_parameters():
+            # Check if the layer belongs to the encoder and is within the first few layers
+            if "blocks" in name:
+                block_idx = int(name.split('.')[1])
+                param.requires_grad = False if block_idx < 4 else True
+            else:
+                param.requires_grad = True
+        optimizer_parameters = [param for param in base_model.parameters() if param.requires_grad]
 
 
 torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
@@ -181,7 +191,7 @@ torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
 criterion = nn.CrossEntropyLoss(weight=weights)
 optimizer = torch.optim.Adam(optimizer_parameters, lr=learning_rate)
 # optimizer = torch.optim.RMSprop(optimizer_parameters, lr=learning_rate, momentum=0.9, weight_decay=0.00001, alpha=0.9)
-lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
+lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5)
 
 # Training the model
 base_model.to(device)
@@ -240,7 +250,7 @@ for epoch in range(num_epochs):
 
     print(f"Epoch {epoch + 1}, Training Loss: {train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Log Loss: {val_logloss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
-    if val_logloss < best_val_logloss or (val_logloss == best_val_logloss and train_loss < best_train_loss):
+    if val_logloss < best_val_logloss or (val_logloss == best_val_logloss and best_val_acc < val_acc):
         best_train_loss = train_loss
         best_avg_val_loss = avg_val_loss
         best_val_logloss = val_logloss
