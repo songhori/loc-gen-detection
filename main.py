@@ -124,7 +124,7 @@ class EffNetV2sModel(torch.nn.Module):
 
 
 class vitModel(nn.Module):
-    def __init__(self, model='loc', variant='b_16', num_classes=2, pretrained=False, model_path=None):
+    def __init__(self, variant='b_16', num_classes=2, pretrained=False, model_path=None):
         super(vitModel, self).__init__()
         
         # Initialize the vit model
@@ -135,11 +135,7 @@ class vitModel(nn.Module):
                 self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1 if pretrained else None)
         
         # Replace the fully connected layer to match your fine-tuned model
-        match model:
-            case 'loc':
-                self.model.heads = nn.Linear(self.model.heads[0].in_features, num_classes)
-            case 'gen':
-                self.model.heads.head = nn.Linear(self.model.heads.head.in_features, num_classes)
+        self.model.heads.head = nn.Linear(self.model.heads.head.in_features, num_classes)
         
         # Load the saved state dict (if model_path is provided)
         if model_path:
@@ -179,12 +175,12 @@ match gender_model_selection:
         gender.eval()
 
     case 'vit_b_16':
-        gender = vitModel(num_classes=2, variant='b_16', model='gen', model_path=gender_model)
+        gender = vitModel(num_classes=2, variant='b_16', model_path=gender_model)
         gender.to(device)
         gender.eval()
     
     case 'vit_l_16':
-        gender = vitModel(num_classes=2, variant='l_16', model='gen', model_path=gender_model)
+        gender = vitModel(num_classes=2, variant='l_16', model_path=gender_model)
         gender.to(device)
         gender.eval()
 
