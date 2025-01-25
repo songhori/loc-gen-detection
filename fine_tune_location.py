@@ -23,6 +23,7 @@ num_epochs = 100
 patience_no_imprv = 12
 test_size = 0.086
 learning_rate = 0.001
+vit_min_transfer_layer = 11  # parameters from layers since vit_min_transfer_layer to 11 are learnable
 
 
 # Load the base model with updated weights parameter
@@ -42,18 +43,37 @@ match model_name:
 
 imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
+
+def resize_with_padding(image, target_size=(224, 224)):
+    # Resize while maintaining aspect ratio
+    image = transforms.Resize(target_size, interpolation=Image.BILINEAR)(image)
+    
+    # Get new dimensions
+    width, height = image.size
+    
+    # Calculate padding
+    pad_height = (target_size[1] - height) // 2
+    pad_width = (target_size[0] - width) // 2
+    
+    # Pad the image
+    image = transforms.Pad((pad_width, pad_height, target_size[0] - width - pad_width, target_size[1] - height - pad_height))(image)
+    return image
+
+
 # Define transformations
 base_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    # transforms.Resize((224, 224)),
+    transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
 
 augment_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    # transforms.Resize((224, 224)),
+    transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
-    transforms.RandomRotation(degrees=10),
+    transforms.ColorJitter(brightness=0.35, contrast=0.35, saturation=0.35, hue=0.35),
+    transforms.RandomRotation(degrees=15),
     transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
     transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
@@ -140,13 +160,16 @@ match model_name:
         # Freeze early layers in the encoder
         for name, param in base_model.named_parameters():
             # Check if the layer belongs to the encoder and is within the first few layers
-            if "encoder" in name and "layer" in name.split('.'):
-                param.requires_grad = True
+            if "layer" in name:
+                encoder_layer = name.split('.')[2]
+                layer_idx = int(encoder_layer.split('_')[2])
+                param.requires_grad = False if layer_idx < vit_min_transfer_layer else True
+            else:
+                param.requires_grad = False
 
         # Modify the head layer to match the number of classes (488)
-        base_model.heads = nn.Linear(base_model.heads[0].in_features, 488)
-
-        optimizer_parameters = base_model.heads.parameters()
+        base_model.heads.head = nn.Linear(base_model.heads.head.in_features, 488)
+        optimizer_parameters = [param for param in base_model.parameters() if param.requires_grad]
 
 
 torch.nn.utils.clip_grad_norm_(base_model.parameters(), max_norm=1.0)
