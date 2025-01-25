@@ -1,5 +1,6 @@
 ############ Load libraries  ############
 
+import os
 import timm
 import torch
 import numpy as np
@@ -13,6 +14,7 @@ from torchvision import models
 from torchvision import transforms as T
 # from insightface.app import FaceAnalysis
 from deepface import DeepFace
+from sklearn.metrics import log_loss, accuracy_score
 tqdm.pandas()
 
 
@@ -117,6 +119,7 @@ class vitModel(nn.Module):
                 self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1 if pretrained else None)
         
         # Replace the fully connected layer to match your fine-tuned model
+        # self.model.heads = nn.Linear(self.model.heads[0].in_features, num_classes)
         self.model.heads.head = nn.Linear(self.model.heads.head.in_features, num_classes)
         
         # Load the saved state dict (if model_path is provided)
@@ -267,3 +270,90 @@ for filename in tqdm(files):
 
 sub = pd.DataFrame({'path':paths, 'males':males, 'females':females})
 sub.to_csv('data/bodies/submission_hard_gender.csv', index=False)
+
+
+
+# calculate test detection accuracy
+test_hard_path = 'data/bodies/test_hard_gender_bodies'
+files_path = f'{test_hard_path}/mix/*'
+files = sorted(glob(files_path))
+df = pd.read_csv(f'{test_hard_path}/bodies_labels.csv')
+df = df.sort_values(by='path', ascending=True)
+df.to_csv(f'{test_hard_path}/bodies_labels.csv', index=False)
+
+filename_to_class = dict(zip(df.iloc[:, 1], df.iloc[:, 0]))
+
+all_labels, all_probs, all_preds = [], [], []
+for filename in tqdm(files):
+    
+    img = Image.open(filename).convert('RGB')
+    imm = img
+
+    match gender_model_selection:
+
+        # case 'EffNetb0Model' | 'EffNetV2sModel':
+        #     imm_tra = transform(imm)
+        #     gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0][0]
+        #     if gen_pred < gender_threshold:
+        #         ma += 1
+        #     else:
+        #         fe += 1
+        
+        case 'vit_b_16' | 'vit_l_16':
+            imm_tra = transform2(imm)
+            gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+            preds = np.argmax(gen_pred)  # Predicted class labels
+            labels = filename_to_class[os.path.basename(filename)]
+            all_labels.append(labels)
+            all_preds.append(preds)
+            all_probs.append(gen_pred)
+
+        # case 'resnet152' | 'efficientnet_b7_ns':
+        #     imm_tra = transform2(imm)
+        #     tens_output = gender(imm_tra.unsqueeze(0).to(device))
+
+        #     # Apply softmax to the tensor
+        #     tens_probs = torch.softmax(tens_output, dim=1)
+
+        #     # Convert to numpy and get predictions
+        #     gen_pred = tens_probs.detach().cpu().numpy()[0]
+        #     gen_pred_idx = np.argmax(gen_pred)
+
+        #     # Update counters based on the prediction
+        #     if gen_pred_idx == 0:
+        #         ma += 1
+        #     else:
+        #         fe += 1
+
+        # case 'deepface':
+        #     gender_pred = get_deepface_gender(imm)
+        #     if gender_pred == 'Man':
+        #         ma += 1
+        #     else:
+        #         fe += 1
+
+        # case 'insightface':
+        #     faces = gender.get(np.array(imm))
+        #     gen_pred = faces[0].sex  # 1 = Male, 0 = Female
+        #     if gen_pred == 1:
+        #         ma += 1
+        #     else:
+        #         fe += 1
+
+
+
+# Convert lists to numpy arrays for log_loss and accuracy
+all_labels = np.array(all_labels)  # Shape: (num_samples, )
+all_probs = np.array(all_probs)  # Shape: (num_samples, 2)
+# Calculate parameters
+val_logloss = log_loss(all_labels, all_probs, labels=list(range(2)))
+val_acc = accuracy_score(all_labels, all_preds)
+
+
+preds_df = pd.DataFrame(all_preds, columns=['Predicted Label'])
+probs_df = pd.DataFrame(all_probs, columns=['Prob_Male', 'Prob_Female'])
+
+df_updated = pd.concat([df, preds_df, probs_df], axis=1)
+df_updated.to_csv(f'{test_hard_path}/bodies_labels_result.csv', index=False)
+
+print(f"Test Log Loss: {val_logloss:.4f}, Test Accuracy: {val_acc:.4f}")
