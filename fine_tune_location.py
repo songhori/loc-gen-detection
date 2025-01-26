@@ -22,8 +22,8 @@ batch_size = 64
 num_epochs = 100
 patience_no_imprv = 12
 test_size = 0.086
-learning_rate = 0.0005
-vit_min_transfer_layer = 11  # parameters from layers since vit_min_transfer_layer to 11 are learnable
+learning_rate = 0.0001
+vit_min_transfer_layer = 10  # parameters from layers since vit_min_transfer_layer to 11 are learnable
 
 
 # Load the base model with updated weights parameter
