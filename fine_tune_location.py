@@ -18,11 +18,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 model_name = 'vit_b_16'
 data_dir = 'data/train2'
-batch_size = 32
+batch_size = 64
 num_epochs = 100
 patience_no_imprv = 12
 test_size = 0.086
-learning_rate = 0.001
+learning_rate = 0.0005
 vit_min_transfer_layer = 11  # parameters from layers since vit_min_transfer_layer to 11 are learnable
 
 
