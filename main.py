@@ -84,7 +84,26 @@ transform2 = T.Compose([
     T.Normalize(*imagenet_stats)  # Add normalization
 ])
 
+def resize_with_padding(image, target_size=(224, 224)):
+    # Resize while maintaining aspect ratio
+    image = T.Resize(target_size, interpolation=Image.BILINEAR)(image)
+    
+    # Get new dimensions
+    width, height = image.size
+    
+    # Calculate padding
+    pad_height = (target_size[1] - height) // 2
+    pad_width = (target_size[0] - width) // 2
+    
+    # Pad the image
+    image = T.Pad((pad_width, pad_height, target_size[0] - width - pad_width, target_size[1] - height - pad_height))(image)
+    return image
 
+transform3 = T.Compose([
+    T.Lambda(lambda img: resize_with_padding(img)),
+    T.ToTensor(),
+    T.Normalize(*imagenet_stats)
+])
 
 ############ Body Detection ############
 
@@ -365,4 +384,4 @@ temp = sub.probas.apply(pd.Series)
 sub = pd.concat([sub,temp], axis=1)
 sub = sub.drop(['probas'], axis=1)
 
-sub.to_csv('submission.csv', index=False)
+sub.to_csv('submission/submission.csv', index=False)
