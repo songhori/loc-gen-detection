@@ -30,12 +30,16 @@ vit_min_transfer_layer = 10  # parameters from layers since vit_min_transfer_lay
 match model_name:
     case 'resnet101':
         base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
+        input_img_size = (224, 224)
     case 'resnet152':
         base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
+        input_img_size = (224, 224)
     case 'vit_b_16':
-        base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
+        base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
+        input_img_size = (384, 384)
     case 'vit_l_16':
         base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
+        input_img_size = (224, 224)
 
 
 
@@ -44,7 +48,7 @@ match model_name:
 imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
 
-def resize_with_padding(image, target_size=(224, 224)):
+def resize_with_padding(image, target_size=input_img_size):
     # Resize while maintaining aspect ratio
     image = transforms.Resize(target_size, interpolation=Image.BILINEAR)(image)
     
@@ -62,19 +66,19 @@ def resize_with_padding(image, target_size=(224, 224)):
 
 # Define transformations
 base_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize(input_img_size),
     # transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
 
 augment_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize(input_img_size),
     # transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.35, contrast=0.35, saturation=0.35, hue=0.35),
     transforms.RandomRotation(degrees=15),
-    transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),  # Random crop with resizing
+    transforms.RandomResizedCrop(input_img_size[0], scale=(0.7, 1.0)),  # Random crop with resizing
     transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
