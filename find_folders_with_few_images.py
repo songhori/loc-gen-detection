@@ -13,7 +13,7 @@ def count_images_in_folder(folder_path, image_extensions):
     return count
 
 def find_folders_with_few_images(base_directory, folder_range, image_threshold):
-    image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
+    image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp')
     folders_with_few_images = []
 
     for folder_number in range(folder_range + 1):  # Start from 0 to folder_range (inclusive)
