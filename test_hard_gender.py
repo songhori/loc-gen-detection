@@ -68,6 +68,12 @@ transform2 = T.Compose([
     T.Normalize(*imagenet_stats)  # Add normalization
 ])
 
+transform3 = T.Compose([
+    T.Resize((384, 384)),
+    T.ToTensor(),
+    T.Normalize(*imagenet_stats)  # Add normalization
+])
+
 def resize_with_padding(image, target_size=(224, 224)):
     # Resize while maintaining aspect ratio
     image = T.Resize(target_size, interpolation=Image.BILINEAR)(image)
@@ -83,7 +89,7 @@ def resize_with_padding(image, target_size=(224, 224)):
     image = T.Pad((pad_width, pad_height, target_size[0] - width - pad_width, target_size[1] - height - pad_height))(image)
     return image
 
-transform3 = T.Compose([
+transform4 = T.Compose([
     T.Lambda(lambda img: resize_with_padding(img)),
     T.ToTensor(),
     T.Normalize(*imagenet_stats)
@@ -135,7 +141,7 @@ class vitModel(nn.Module):
         # Initialize the vit model
         match variant:
             case 'b_16':
-                self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1 if pretrained else None)
+                self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
             case 'l_16':
                 self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1 if pretrained else None)
         
@@ -244,7 +250,15 @@ for filename in tqdm(files):
                 else:
                     fe += 1
             
-            case 'vit_b_16' | 'vit_l_16':
+            case 'vit_b_16':
+                imm_tra = transform3(imm)
+                gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+                if gen_pred[0] >= gen_pred[1]:
+                    ma += 1
+                else:
+                    fe += 1
+
+            case 'vit_l_16':
                 imm_tra = transform2(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
@@ -320,7 +334,16 @@ for filename in tqdm(files):
         #     else:
         #         fe += 1
         
-        case 'vit_b_16' | 'vit_l_16':
+        case 'vit_b_16':
+            imm_tra = transform3(imm)
+            gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+            preds = np.argmax(gen_pred)  # Predicted class labels
+            labels = filename_to_class[os.path.basename(filename)]
+            all_labels.append(labels)
+            all_preds.append(preds)
+            all_probs.append(gen_pred)
+
+        case 'vit_l_16':
             imm_tra = transform2(imm)
             gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
             preds = np.argmax(gen_pred)  # Predicted class labels

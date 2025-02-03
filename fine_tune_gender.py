@@ -23,22 +23,27 @@ batch_size = 16
 num_epochs = 80
 patience_no_imprv = 8
 test_size = 0.1
-learning_rate = 0.00025
-vit_min_transfer_layer = 8  # parameters from layers since vit_min_transfer_layer to 11 are learnable
+learning_rate = 0.00005
+vit_min_transfer_layer = 7  # parameters from layers number vit_min_transfer_layer to 11 are learnable
 
 
 # Load the base model with updated weights parameter
 match model_name:
     case 'resnet101':
         base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
+        input_img_size = (224, 224)
     case 'resnet152':
         base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
+        input_img_size = (224, 224)
     case 'vit_b_16':
-        base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
+        base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
+        input_img_size = (384, 384)
     case 'vit_l_16':
         base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
+        input_img_size = (224, 224)
     case 'efficientnet_b7_ns':
         base_model = timm.create_model('tf_efficientnet_b7.ns_jft_in1k', pretrained=True, num_classes=2)
+        input_img_size = (224, 224)
 
 
 
@@ -70,7 +75,7 @@ class ImageDataset(Dataset):
 imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
 
-def resize_with_padding(image, target_size=(224, 224)):
+def resize_with_padding(image, target_size=input_img_size):
     # Resize while maintaining aspect ratio
     image = transforms.Resize(target_size, interpolation=Image.BILINEAR)(image)
     
@@ -88,19 +93,19 @@ def resize_with_padding(image, target_size=(224, 224)):
 
 # Define transformations
 base_transform = transforms.Compose([
-    # transforms.Resize((224, 224)),
+    # transforms.Resize(input_img_size),
     transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)
 ])
 
 augment_transform = transforms.Compose([
-    # transforms.Resize((224, 224)),
+    # transforms.Resize(input_img_size),
     transforms.Lambda(lambda img: resize_with_padding(img)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.35, contrast=0.35, saturation=0.35, hue=0.35),
     transforms.RandomRotation(degrees=15),
-    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),  # Random crop with resizing
+    transforms.RandomResizedCrop(input_img_size[0], scale=(0.8, 1.0)),  # Random crop with resizing
     transforms.RandAugment(num_ops=3, magnitude=9),
     transforms.ToTensor(),
     transforms.Normalize(*imagenet_stats)

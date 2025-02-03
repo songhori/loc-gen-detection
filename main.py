@@ -149,17 +149,13 @@ class EffNetV2sModel(torch.nn.Module):
 
 
 class vitModel(nn.Module):
-    def __init__(self, variant='b_16', num_classes=2, pretrained=False, model_path=None, type='gen'):
+    def __init__(self, variant='b_16', num_classes=2, pretrained=False, model_path=None):
         super(vitModel, self).__init__()
         
         # Initialize the vit model
         match variant:
             case 'b_16':
-                if type == 'gen':
-                    self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1 if pretrained else None)
-                elif type == 'loc':
-                    self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
-                    
+                self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
             case 'l_16':
                 self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1 if pretrained else None)
         
@@ -289,7 +285,7 @@ match location_model_name:
     case 'resnet101':
         classifier = ResNet101Model(num_classes=488, model_path=location_model)
     case 'vit_b_16':
-        classifier = vitModel(num_classes=488, variant='b_16', model_path=location_model, type='loc')
+        classifier = vitModel(num_classes=488, variant='b_16', model_path=location_model)
     case 'vit_l_16':
         classifier = vitModel(num_classes=488, variant='l_16', model_path=location_model)
 
@@ -332,7 +328,15 @@ for filename in tqdm(files):
                 else:
                     fe += 1
             
-            case 'vit_b_16' | 'vit_l_16':
+            case 'vit_b_16':
+                imm_tra = transform3(imm)
+                gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+                if gen_pred[0] >= gen_pred[1]:
+                    ma += 1
+                else:
+                    fe += 1
+
+            case 'vit_l_16':
                 imm_tra = transform2(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
