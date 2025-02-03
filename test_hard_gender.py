@@ -22,7 +22,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 
-
 ############ Initialize Parameters  ############
 
 test_path = 'data/bodies/test_hard_gender/*'
