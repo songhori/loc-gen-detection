@@ -16,14 +16,14 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 #######################################################
 
-model_name = 'vit_b_16'
+model_name = 'vit_l_16'
 data_dir = 'data/train2'
-batch_size = 128
+batch_size = 32
 num_epochs = 100
 patience_no_imprv = 8
 test_size = 0.086
-learning_rate = 0.0003
-vit_min_transfer_layer = 9  # parameters from layers since vit_min_transfer_layer to 11 are learnable
+learning_rate = 0.00008
+vit_min_transfer_layer = 20  # learnable layer numbers are from vit_min_transfer_layer to 11 (for vit_b_16) and 23 (for vit_l_16)
 
 
 # Load the base model with updated weights parameter
@@ -38,8 +38,8 @@ match model_name:
         base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
         input_img_size = (384, 384)
     case 'vit_l_16':
-        base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
-        input_img_size = (224, 224)
+        base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_SWAG_E2E_V1)
+        input_img_size = (512, 512)
 
 
 
