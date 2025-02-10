@@ -268,18 +268,24 @@ class ResNet101Model(nn.Module):
 
 
 match location_model_name:
+
     case 'resnet50':
         ckpt = torch.load(location_model, map_location=device)
         classifier = Resnet50Model(num_classes=488)
         classifier.load_state_dict(ckpt)
+
     case 'resnet101':
         classifier = ResNet101Model(num_classes=488, model_path=location_model)
+
     case 'vit_b_16':
         classifier = vitModel(num_classes=488, variant='b_16', model_path=location_model)
+
     case 'vit_l_16':
         classifier = vitModel(num_classes=488, variant='l_16', model_path=location_model)
+
     case 'vit_h_14':
         classifier = vitModel(num_classes=488, variant='h_14', model_path=location_model)
+
 
 classifier.eval()
 classifier.to(device)
