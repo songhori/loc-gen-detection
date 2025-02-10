@@ -1,5 +1,3 @@
-############ Load libraries  ############
-
 import timm
 import torch
 import numpy as np
@@ -35,20 +33,25 @@ location_model_name = 'vit_l_16'
 match gender_model_selection:
 
     case 'EffNetb0Model' | 'EffNetV2sModel':
-        gender_threshold = 0.5
         gender_model = 'models/gender/gender_effb0_body.pth'
+        img_size_gen = 224
+        gender_threshold = 0.5
 
     case 'resnet152':
         gender_model = 'models/gender/resnet152_gender_fined.pth'
-
-    case 'vit_b_16':
-        gender_model = 'models/gender/vit_b_16_gender_fined_best.pth'
-
-    case 'vit_l_16':
-        gender_model = 'models/gender/vit_l_16_gender_fined.pth'
+        img_size_gen = (224, 224)
 
     case 'efficientnet_b7_ns':
         gender_model = 'models/gender/efficientnet_b7_ns_gender_fined.pth'
+        img_size_gen = (224, 224)
+
+    case 'vit_b_16':
+        gender_model = 'models/gender/vit_b_16_gender_fined_best.pth'
+        img_size_gen = (384, 384)
+
+    case 'vit_l_16':
+        gender_model = 'models/gender/vit_l_16_gender_fined.pth'
+        img_size_gen = (512, 512)
 
     case 'deepface' | 'insightface':
         pass
@@ -58,15 +61,23 @@ match location_model_name:
     
     case 'resnet50':
         location_model = 'models/location/resnet50_fined.pt'
+        img_size_loc = 224
 
     case 'resnet101':
         location_model = 'models/location/resnet101_fined.pth'
+        img_size_loc = (224, 224)
 
     case 'vit_b_16':
         location_model = 'models/location/vit_b_16_fined.pth'
+        img_size_loc = (384, 384)
 
     case 'vit_l_16':
         location_model = 'models/location/vit_l_16_fined_best.pth'
+        img_size_loc = (512, 512)
+
+    case 'vit_h_14':
+        location_model = 'models/location/vit_h_14_fined.pth'
+        img_size_loc = (518, 518)
 
 
 
@@ -74,48 +85,19 @@ match location_model_name:
 
 imagenet_stats = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
-transform = T.Compose([T.Resize(224),
-                       T.ToTensor(),
-                       T.Normalize(*imagenet_stats)])
-
-transform2 = T.Compose([
-    T.Resize((224, 224)),
-    T.ToTensor(),
-    T.Normalize(*imagenet_stats)  # Add normalization
-])
-
-transform3 = T.Compose([
-    T.Resize((384, 384)),
-    T.ToTensor(),
-    T.Normalize(*imagenet_stats)  # Add normalization
-])
-
-transform4 = T.Compose([
-    T.Resize((512, 512)),
-    T.ToTensor(),
-    T.Normalize(*imagenet_stats)  # Add normalization
-])
-
-def resize_with_padding(image, target_size=(224, 224)):
-    # Resize while maintaining aspect ratio
-    image = T.Resize(target_size, interpolation=Image.BILINEAR)(image)
-    
-    # Get new dimensions
-    width, height = image.size
-    
-    # Calculate padding
-    pad_height = (target_size[1] - height) // 2
-    pad_width = (target_size[0] - width) // 2
-    
-    # Pad the image
-    image = T.Pad((pad_width, pad_height, target_size[0] - width - pad_width, target_size[1] - height - pad_height))(image)
-    return image
-
-transform5 = T.Compose([
-    T.Lambda(lambda img: resize_with_padding(img)),
+transform_gen = T.Compose([
+    T.Resize(img_size_gen),
     T.ToTensor(),
     T.Normalize(*imagenet_stats)
-])
+    ])
+
+transform_loc = T.Compose([
+    T.Resize(img_size_loc),
+    T.ToTensor(),
+    T.Normalize(*imagenet_stats)
+    ])
+
+
 
 ############ Body Detection ############
 
@@ -164,6 +146,8 @@ class vitModel(nn.Module):
                 self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
             case 'l_16':
                 self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_SWAG_E2E_V1)
+            case 'h_14':
+                self.model = models.vit_h_14(weights=models.ViT_H_14_Weights.IMAGENET1K_SWAG_E2E_V1)
         
         # Replace the fully connected layer to match your fine-tuned model
         self.model.heads.head = nn.Linear(self.model.heads.head.in_features, num_classes)
@@ -294,6 +278,8 @@ match location_model_name:
         classifier = vitModel(num_classes=488, variant='b_16', model_path=location_model)
     case 'vit_l_16':
         classifier = vitModel(num_classes=488, variant='l_16', model_path=location_model)
+    case 'vit_h_14':
+        classifier = vitModel(num_classes=488, variant='h_14', model_path=location_model)
 
 classifier.eval()
 classifier.to(device)
@@ -327,7 +313,7 @@ for filename in tqdm(files):
         match gender_model_selection:
 
             case 'EffNetb0Model' | 'EffNetV2sModel':
-                imm_tra = transform(imm)
+                imm_tra = transform_gen(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0][0]
                 if gen_pred < gender_threshold:
                     ma += 1
@@ -335,7 +321,7 @@ for filename in tqdm(files):
                     fe += 1
             
             case 'vit_b_16':
-                imm_tra = transform3(imm)
+                imm_tra = transform_gen(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
                     ma += 1
@@ -343,7 +329,7 @@ for filename in tqdm(files):
                     fe += 1
 
             case 'vit_l_16':
-                imm_tra = transform4(imm)
+                imm_tra = transform_gen(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
                     ma += 1
@@ -351,7 +337,7 @@ for filename in tqdm(files):
                     fe += 1
 
             case 'resnet152' | 'efficientnet_b7_ns':
-                imm_tra = transform2(imm)
+                imm_tra = transform_gen(imm)
                 tens_output = gender(imm_tra.unsqueeze(0).to(device))
 
                 # Apply softmax to the tensor
@@ -385,17 +371,11 @@ for filename in tqdm(files):
     males.append(ma)
     females.append(fe)
     
-    match location_model_name:
-        case 'resnet50':
-            img = transform(img)
-        case 'resnet101':
-            img = transform2(img)
-        case 'vit_b_16':
-            img = transform3(img)
-        case 'vit_l_16':
-            img = transform4(img)
-
-    probas.append(classifier(img.unsqueeze(0).to(device)).detach().cpu().numpy()[0])
+    img = transform_loc(img)
+    with torch.no_grad():
+        # with torch.amp.autocast(device_type='cuda'):
+        output = classifier(img.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+    probas.append(output)
     paths.append(filename.split('/')[-1])
 
 sub = pd.DataFrame({'path':paths, 'males':males, 'females':females, 'probas':probas})
