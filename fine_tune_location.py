@@ -30,15 +30,19 @@ vit_min_transfer_layer = 20  # learnable layer numbers are from vit_min_transfer
 
 # Load the base model with updated weights parameter
 match model_name:
+
     case 'resnet101':
         base_model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
         input_img_size = (224, 224)
+
     case 'resnet152':
         base_model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
         input_img_size = (224, 224)
+
     case 'vit_b_16':
         base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
         input_img_size = (384, 384)
+        
     case 'vit_l_16':
         base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_SWAG_E2E_V1)
         input_img_size = (512, 512)
