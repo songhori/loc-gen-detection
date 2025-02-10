@@ -25,7 +25,7 @@ num_epochs = 100
 patience_no_imprv = 8
 test_size = 0.086
 learning_rate = 0.00008
-vit_min_transfer_layer = 20  # learnable layer numbers are from vit_min_transfer_layer to 11 (for vit_b_16) and 23 (for vit_l_16)
+vit_min_transfer_layer = 20  # learnable layer numbers are from vit_min_transfer_layer to 11 (for vit_b_16) and 23 (for vit_l_16) and 31 (for vit_h_14)
 
 
 # Load the base model with updated weights parameter
@@ -46,6 +46,10 @@ match model_name:
     case 'vit_l_16':
         base_model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_SWAG_E2E_V1)
         input_img_size = (512, 512)
+
+    case 'vit_h_14':
+        base_model = models.vit_h_14(weights=models.ViT_H_14_Weights.IMAGENET1K_SWAG_E2E_V1)
+        input_img_size = (518, 518)
 
 
 
@@ -166,7 +170,7 @@ match model_name:
 
         optimizer_parameters = base_model.fc.parameters()
 
-    case 'vit_b_16' | 'vit_l_16':
+    case 'vit_b_16' | 'vit_l_16' | 'vit_h_14':
         # Freeze early layers in the encoder
         for name, param in base_model.named_parameters():
             # Check if the layer belongs to the encoder and is within the first few layers
