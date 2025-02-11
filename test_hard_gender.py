@@ -73,6 +73,12 @@ transform3 = T.Compose([
     T.Normalize(*imagenet_stats)  # Add normalization
 ])
 
+transform4 = T.Compose([
+    T.Resize((512, 512)),
+    T.ToTensor(),
+    T.Normalize(*imagenet_stats)  # Add normalization
+])
+
 def resize_with_padding(image, target_size=(224, 224)):
     # Resize while maintaining aspect ratio
     image = T.Resize(target_size, interpolation=Image.BILINEAR)(image)
@@ -88,7 +94,7 @@ def resize_with_padding(image, target_size=(224, 224)):
     image = T.Pad((pad_width, pad_height, target_size[0] - width - pad_width, target_size[1] - height - pad_height))(image)
     return image
 
-transform4 = T.Compose([
+transform5 = T.Compose([
     T.Lambda(lambda img: resize_with_padding(img)),
     T.ToTensor(),
     T.Normalize(*imagenet_stats)
@@ -134,7 +140,7 @@ class EffNetV2sModel(torch.nn.Module):
 
 
 class vitModel(nn.Module):
-    def __init__(self, variant='b_16', num_classes=2, pretrained=False, model_path=None):
+    def __init__(self, variant='b_16', num_classes=2, model_path=None):
         super(vitModel, self).__init__()
         
         # Initialize the vit model
@@ -142,7 +148,7 @@ class vitModel(nn.Module):
             case 'b_16':
                 self.model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1)
             case 'l_16':
-                self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1 if pretrained else None)
+                self.model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_SWAG_E2E_V1)
         
         # Replace the fully connected layer to match your fine-tuned model
         # self.model.heads = nn.Linear(self.model.heads[0].in_features, num_classes)
@@ -258,7 +264,7 @@ for filename in tqdm(files):
                     fe += 1
 
             case 'vit_l_16':
-                imm_tra = transform2(imm)
+                imm_tra = transform4(imm)
                 gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
                     ma += 1
@@ -343,7 +349,7 @@ for filename in tqdm(files):
             all_probs.append(gen_pred)
 
         case 'vit_l_16':
-            imm_tra = transform2(imm)
+            imm_tra = transform4(imm)
             gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
             preds = np.argmax(gen_pred)  # Predicted class labels
             labels = filename_to_class[os.path.basename(filename)]
