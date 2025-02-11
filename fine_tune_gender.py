@@ -9,6 +9,9 @@ from torchvision import models, transforms
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, accuracy_score
+from tqdm import tqdm
+tqdm.pandas()
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.cuda.empty_cache()
@@ -212,10 +215,13 @@ best_val_logloss = float('inf')
 best_val_acc = 0.0
 epochs_no_imprv = 0
 
+                    #########
+                # Training loop
+
 for epoch in range(num_epochs):
     base_model.train()
     running_loss = 0.0
-    for inputs, labels in train_loader:
+    for inputs, labels in tqdm(train_loader, desc=f"Epoch {epoch+1} Training"):
         inputs, labels = inputs.to(device), labels.to(device)
         optimizer.zero_grad()
         with torch.amp.autocast(device_type='cuda'):
@@ -225,22 +231,24 @@ for epoch in range(num_epochs):
         optimizer.step()
         running_loss += loss.item()
 
-    # Validation loop
+                    #########
+                # Validation loop
+
     base_model.eval()
     val_loss = 0
     all_labels, all_probs, all_preds = [], [], []
 
     with torch.no_grad():
-        for inputs, labels in val_loader:
+        for inputs, labels in tqdm(val_loader, desc=f"Epoch {epoch+1} Validation"):
             inputs, labels = inputs.to(device), labels.to(device)
             
-            # Get model outputs
-            outputs = base_model(inputs)
-            loss = criterion(outputs, labels)
-            val_loss += loss.item()
-
-            # Apply softmax to convert logits to probabilities
-            probs = torch.softmax(outputs, dim=1)  # Shape: (batch_size, 2)
+            # Mixed precision forward pass (optional)
+            with torch.amp.autocast(device_type='cuda'):
+                outputs = base_model(inputs)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+                # Apply softmax to convert logits to probabilities
+                probs = torch.softmax(outputs, dim=1)  # Shape: (batch_size, 2)
             _, preds = torch.max(probs, 1)  # Predicted class labels
             
             # Convert tensors to numpy arrays and accumulate
