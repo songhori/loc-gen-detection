@@ -13,7 +13,7 @@ tqdm.pandas()
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+torch.cuda.empty_cache()
 
 
 #######################################################
@@ -205,7 +205,6 @@ best_val_logloss = float('inf')
 best_val_acc = 0.0
 epochs_no_imprv = 0
 
-
                     #########
                 # Training loop
 
@@ -222,7 +221,6 @@ for epoch in range(num_epochs):
         optimizer.step()
         running_loss += loss.item()
 
-
                     #########
                 # Validation loop
 
@@ -234,10 +232,10 @@ for epoch in range(num_epochs):
             inputs, labels = inputs.to(device), labels.to(device)
             
             # Mixed precision forward pass (optional)
-            # with torch.amp.autocast(device_type='cuda'):
-            outputs = base_model(inputs)
-            # Apply softmax to convert logits to probabilities
-            probs = torch.softmax(outputs, dim=1)  # Shape: (batch_size, 488)
+            with torch.amp.autocast(device_type='cuda'):
+                outputs = base_model(inputs)
+                # Apply softmax to convert logits to probabilities
+                probs = torch.softmax(outputs, dim=1)  # Shape: (batch_size, 488)
             _, preds = torch.max(probs, 1)  # Predicted class labels
             
             # Convert tensors to numpy arrays and accumulate
