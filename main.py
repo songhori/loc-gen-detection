@@ -320,7 +320,8 @@ for filename in tqdm(files):
 
             case 'EffNetb0Model' | 'EffNetV2sModel':
                 imm_tra = transform_gen(imm)
-                gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0][0]
+                with torch.no_grad():
+                    gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0][0]
                 if gen_pred < gender_threshold:
                     ma += 1
                 else:
@@ -328,7 +329,8 @@ for filename in tqdm(files):
             
             case 'vit_b_16':
                 imm_tra = transform_gen(imm)
-                gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+                with torch.no_grad():
+                    gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
                     ma += 1
                 else:
@@ -336,7 +338,8 @@ for filename in tqdm(files):
 
             case 'vit_l_16':
                 imm_tra = transform_gen(imm)
-                gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
+                with torch.no_grad():
+                    gen_pred = gender(imm_tra.unsqueeze(0).to(device)).detach().cpu().numpy()[0]
                 if gen_pred[0] >= gen_pred[1]:
                     ma += 1
                 else:
@@ -344,13 +347,13 @@ for filename in tqdm(files):
 
             case 'resnet152' | 'efficientnet_b7_ns':
                 imm_tra = transform_gen(imm)
-                tens_output = gender(imm_tra.unsqueeze(0).to(device))
 
-                # Apply softmax to the tensor
-                tens_probs = torch.softmax(tens_output, dim=1)
-
-                # Convert to numpy and get predictions
-                gen_pred = tens_probs.detach().cpu().numpy()[0]
+                with torch.no_grad():
+                    tens_output = gender(imm_tra.unsqueeze(0).to(device))
+                    # Apply softmax to the tensor
+                    tens_probs = torch.softmax(tens_output, dim=1)
+                    # Convert to numpy and get predictions
+                    gen_pred = tens_probs.detach().cpu().numpy()[0]
                 gen_pred_idx = np.argmax(gen_pred)
 
                 # Update counters based on the prediction
