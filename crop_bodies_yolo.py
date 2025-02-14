@@ -12,8 +12,8 @@ yolo_model = YOLO(body_model)
 yolo_model.to(DEVICE)
 
 # Directories
-input_dir = "data/train2"
-output_dir = "data/bodies"
+input_dir = "data/bodies/4ClassBodies/not_cropped"
+output_dir = "data/bodies/4ClassBodies/cropped"
 os.makedirs(output_dir, exist_ok=True)
 
 images = sorted(os.listdir(input_dir))

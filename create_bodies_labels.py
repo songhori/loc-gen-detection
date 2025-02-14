@@ -2,7 +2,7 @@ import os
 import pandas as pd
 
 # Directories
-data_dir = "data/bodies"
+data_dir = "data/bodies/4ClassBodies"
 male_dir = f"{data_dir}/male"
 female_dir = f"{data_dir}/female"
 output_csv = f"{data_dir}/bodies_labels.csv"
