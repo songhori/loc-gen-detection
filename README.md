@@ -45,6 +45,13 @@ The dataset for training and testing can be found here:
 
 📂 [Google Drive - Dataset](https://drive.google.com/drive/folders/1sUJHwB3t_WChlbrD3Wa69BMxfzzWuKdZ)
 
+
+## Models
+
+All models including yolo11x, trained location detection and trained gender detection models can be found here:
+
+📂 [Google Drive - Models](https://drive.google.com/drive/folders/1pzC3gR1nFJwmXM9Hp6Na6cVwHt8Dh5Tf?usp=sharing)
+
 ---
 
 ## Setup & Installation
