@@ -1,4 +1,4 @@
-# Loc-Gen-Detection
+# loc-gen-detection
 
 **loc-gen-detection** is a machine learning project developed for the 5th Iran's Face Cup Competition (FaceCup) and was awarded first place in this prestigious AI challenge.
 
@@ -7,7 +7,6 @@ This project detects specific tourism locations in Iran and counts the number of
 ---
 
 ## Project Overview
-
 This project consists of three main areas:
 
 ### 1. Web Scraping
@@ -59,13 +58,13 @@ To utilize GPU acceleration, follow these steps:
 1. **Install CUDA Toolkit:**  
    Download and install the CUDA Toolkit from [here](https://developer.nvidia.com/cuda-12-6-3-download-archive?target_os=Windows&target_arch=x86_64&target_version=11&target_type=exe_local): `cuda_12.6.3_561.17_windows.exe`. (or any other compatible version with your O.S.)
 
-2. **Install cuDNN:**  
-   Copy and paste the contents of the `cudnn-windows-...` folder into the installed CUDA directory:  
+2. **Install cuDNN:**
+   download and extract the cuDNN from [here](https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/)
+   Copy and paste the contents of the `cudnn-windows-x86_64-9.6.0.74_cuda12-archive` folder into the installed CUDA directory:  
    `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6`.
 
-3. **Verify Environment Variables:**  
+4. **Verify Environment Variables:**  
    Ensure the following paths are added to your system's environment variables:
-
    ```PATH:
      Add: `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin`  
      Add: `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\lib\x64`
@@ -75,7 +74,7 @@ To utilize GPU acceleration, follow these steps:
    Add: `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\include`
    ```
 
-4. **Install PyTorch and Dependencies:**  
+5. **Install PyTorch and Dependencies:**  
    Run the following command in your activated environment to install PyTorch and related libraries:  
    ```bash
    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
@@ -83,7 +82,7 @@ To utilize GPU acceleration, follow these steps:
    (cu124 stands for cuda version 12.4)
 
 
-5. **Verify cuDNN Installation:**
+6. **Verify cuDNN Installation:**
    After installation, verify that your PyTorch or TensorFlow environment can detect cuDNN:
 
    Run the following Python code to check cuDNN availability:
