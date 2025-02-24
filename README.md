@@ -120,49 +120,49 @@ After installing torch and torchvision with cuda, you can install other packages
 
 
 ## Working with the Project
-   1. Identifying Underrepresented Location Classes
+1. **Identifying Underrepresented Location Classes**
    Script: find_folders_with_few_images.py
    Finds location classes with fewer images and extracts their names.
    These names can be used to scrape additional images later.
 
-   2. Generate Location Class Embeddings
+2. **Generate Location Class Embeddings**
    Script: get_image_embeddings.py
    Uses the CLIP model to compute image embeddings for location classes.
 
-   3. Scraping Additional Location Images
+3. **Scraping Additional Location Images**
    Script: scrape_images.py
    Uses SerpAPI to scrape images from Google Search.
    Requires setting SERPAPI_API_KEY in environment variables.
 
-   4. Detecting & Cropping Bodies (Gender Data Preparation)
+4. **Detecting & Cropping Bodies (Gender Data Preparation)**
    Script: crop_bodies_yolo.py
    Uses YOLO model to detect and crop male and female bodies.
    Note: Male/female dataset is not included; you must add your own images.
 
-   5. Creating Labeled Gender Data
+5. **Creating Labeled Gender Data**
    Script: create_bodies_labels.py
    Labels the gender dataset and generates a CSV for training.
 
-   6. Fine-Tuning the Location Detection Model
+6. **Fine-Tuning the Location Detection Model**
    Script: fine_tune_location.py
    Trains a location classification model with augmentation, regularization, and optimization.
 
-   7. Fine-Tuning the Gender Detection Model
+7. **Fine-Tuning the Gender Detection Model**
    Script: fine_tune_gender.py
    Trains the gender detection model to classify males and females.
 
-   8. Running Inference on Test Data
+8. **Running Inference on Test Data**
    Script: main.py
    Uses trained models for location detection and gender counting.
    Outputs a CSV file containing predictions for test images.
    Results and Output
    The final output is a CSV file with the following columns for each test image:
-
-   Column	Description
-   A	Path to the input image
-   B	Number of males detected
-   C	Number of females detected
-   D - RW	Probability of each location class (sum of all probabilities is 1)
+   | Column | Description                                      |
+   |--------|--------------------------------------------------|
+   | A      | Path to the input image                          |
+   | B      | Number of males detected                         |
+   | C      | Number of females detected                       |
+   | D - RW | Probability of each location class (sum of all probabilities is 1) |
 
 ## Contributions
    Contributions are welcome! Feel free to submit pull requests or report issues.
