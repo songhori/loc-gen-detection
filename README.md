@@ -86,7 +86,7 @@ To utilize GPU acceleration, follow these steps:
    ```bash
    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
    ```
-   (cu124 stands for cuda version 12.4)
+   (cu124 stands for cuda version 12.4. This version should be equal or lower than the installed cuda toolkit version)
 
 
 6. **Verify cuDNN Installation:**
